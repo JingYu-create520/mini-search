@@ -183,6 +183,8 @@ Tests run against a local HTTP server and never touch the internet: 404, 500, a 
 - **Not implemented**: distribution, faceted aggregation, spell correction, learning to rank, multilingual analysers, access control. They are parked in `docs/PLAN.md`.
 - The snapshot is a **single segment** — no merge. Merging buys nothing at 50k documents, so it waits.
 - The demo corpus is **84 hand-written CC0 documents**, not scraped Wikipedia. Hand-written keeps licensing clean, and the small size is what exposed the embedding finding above.
+- The thesaurus **degrades on synthetic corpora**: the 50k bench documents are recombined from one sentence pool, so almost every term co-occurs with almost every other and cosine loses all discriminating power (6 entries extracted there). Real documents are sparse in exactly the way this needs; notes and crawled pages are fine.
+- The UI is a hand-written single file, not Vue 3 + Vite as the original design doc specified. That was a deliberate trade: no npm in the build path keeps "one jar, zero toolchain" true, and the search page only needs `fetch` plus a template. Swapping in a real frontend is a `web/` directory away — `api/StaticFiles` already prefers `web/dist` when it exists.
 - Startup loads the whole snapshot; it will get noticeably slower somewhere in the hundreds of thousands of documents.
 - The shipped dictionary is small and crude; it works because mining compensates, which also means a new corpus can invent words nobody reviewed.
 - No coverage report: every package has tests, but I am not going to quote you a percentage.
