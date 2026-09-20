@@ -81,7 +81,8 @@ gap), single-segment snapshot with no background merge, and the thesaurus degrad
 benchmark corpus because recombined sentences destroy co-occurrence sparsity.
 
 Java 17. `java -jar mini-search.jar` -> http://localhost:9200, demo corpus inside the jar. There is
-also an MCP server (`mcp` subcommand) so an agent can use it as a local Google.
+also an MCP server (`mcp` subcommand) so an agent can use it as a local Google. If you don't want to
+build: the jar is attached to the v0.1.0 release (213KB, one file).
 ```
 
 ---
