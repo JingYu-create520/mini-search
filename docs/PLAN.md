@@ -82,7 +82,7 @@ mini-search/
 - **M2 倒排索引 + BM25** ✅ 验收：recall@5 0.934（门槛 0.90），5 万文档索引 13.6 s（门槛 60 s）。
 - **M3 向量与混合** ✅（含 §1 第 6 条的门槛修正）hybrid nDCG@5 0.918 > bm25 0.912；向量层的门槛与失效证据留档。
 - **M4 爬虫与正文抽取** ✅ 乱码页/无正文页/robots 禁爬页均有断言的降级行为。
-- **M5 前端与打包** ✅ `java -jar mini-search.jar` → `http://localhost:9200` 即得完整体验；jar 205 KB；Docker 与 compose 就位。
+- **M5 前端与打包** ✅ `java -jar mini-search.jar` → `http://localhost:9200` 即得完整体验；jar 180 KB；Docker 与 compose 就位。
 - **M6 MCP + Skill + 文档** ✅ 双语 README、每层行数表、快照/评测文档、`skills/mini-search/SKILL.md`、MCP server 与 4 个工具。
 - **M7 发布周** ⬜ 需要人工执行（Show HN / 掘金 / V2EX / r/LocalLLaMA / awesome 收录）。素材：`data/eval/report.md` 的两处 miss 与"向量层门槛"是比成功数字更强的谈资；GIF 需在 M5 产物上录制。
 

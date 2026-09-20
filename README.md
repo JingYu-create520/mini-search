@@ -2,7 +2,7 @@
 
 **A local-first hybrid search engine for Chinese that fits in a laptop bag.** Crawler → hand-written Chinese analyser → inverted index (BM25) → corpus-trained word vectors + HNSW → RRF fusion → web UI.
 
-One 205 KB jar. **Zero runtime dependencies, no external services, no model downloads.** Your data never leaves the machine, and every layer is small enough for one person to read.
+One 180 KB jar. **Zero runtime dependencies, no external services, no model downloads.** Your data never leaves the machine, and every layer is small enough for one person to read.
 
 ```bash
 java -jar mini-search.jar          # then open http://localhost:9200
@@ -140,6 +140,8 @@ Tools: `search`, `index_url`, `index_text`, `stats`. Companion skill: [`skills/m
 ```bash
 docker compose up --build      # http://localhost:9200
 ```
+
+> I have **not** run this: the Docker daemon was unavailable on the machine that built the project. The Dockerfile is a standard multi-stage build whose artifact is the same 180 KB jar; open an issue if it misbehaves.
 
 ## What each layer actually does
 
