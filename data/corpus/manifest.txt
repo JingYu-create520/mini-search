@@ -1,0 +1,7 @@
+# Files bundled into the jar under /corpus and loaded by Corpus.loadDemo(), in order.
+# CorpusManifestTest asserts this list equals the set of *.jsonl files in data/corpus.
+tech.jsonl
+science.jsonl
+world.jsonl
+history-people.jsonl
+life.jsonl

@@ -1,0 +1,45 @@
+# Labelled query set for mini-search eval. Binary relevance, one JSON object per line.
+# kind=lexical  : the target document contains the query terms (BM25 should win here)
+# kind=semantic : the target document is about the query but does NOT contain its words
+#                 (this is the case the vector layer exists for; hybrid should beat pure BM25)
+# Relevance was decided by hand while writing data/corpus, i.e. the judgements are independent of
+# the scores being measured. Anything that changes analyser or ranking behaviour must be re-run
+# through `mini-search eval` and the new numbers put in the commit message.
+{"id":"q01","query":"倒排索引","relevant":["tech-001"],"kind":"lexical","note":"标题与正文都含该词"}
+{"id":"q02","query":"BM25 参数 调节","relevant":["tech-002"],"kind":"lexical","note":"k1 与 b"}
+{"id":"q03","query":"中文分词 词典","relevant":["tech-003","tech-002"],"kind":"lexical","note":"分词是中文检索的入口"}
+{"id":"q04","query":"HNSW 分层图","relevant":["tech-005"],"kind":"lexical","note":"近似最近邻"}
+{"id":"q05","query":"倒数排名 融合","relevant":["tech-006"],"kind":"lexical","note":"RRF 的中文说法"}
+{"id":"q06","query":"robots 协议 限速","relevant":["tech-007"],"kind":"lexical","note":"礼貌爬虫三原则"}
+{"id":"q07","query":"正文抽取 密度","relevant":["tech-008"],"kind":"lexical","note":"按文字密度选正文"}
+{"id":"q08","query":"字符集 探测 乱码","relevant":["tech-009"],"kind":"lexical","note":"编码探测"}
+{"id":"q09","query":"短语查询 位置","relevant":["tech-011"],"kind":"lexical","note":"需要 position 列表"}
+{"id":"q10","query":"词向量 训练 语料","relevant":["tech-014"],"kind":"lexical","note":"跳格模型与负采样"}
+{"id":"q11","query":"结果高亮","relevant":["tech-016"],"kind":"lexical","note":"偏移量插入标记"}
+{"id":"q12","query":"评测集 召回率","relevant":["tech-015"],"kind":"lexical","note":"检索改动要靠数字"}
+{"id":"q13","query":"单文件 分发 jar","relevant":["tech-018"],"kind":"lexical","note":"本地工具可用性"}
+{"id":"q14","query":"光合作用","relevant":["sci-001"],"kind":"lexical","note":"植物固碳放氧"}
+{"id":"q15","query":"熵 增加 方向","relevant":["sci-003"],"kind":"lexical","note":"热力学第二定律"}
+{"id":"q16","query":"疫苗 抗体 记忆细胞","relevant":["sci-005"],"kind":"lexical","note":"免疫训练"}
+{"id":"q17","query":"板块 俯冲 海沟","relevant":["sci-007","geo-008"],"kind":"lexical","note":"板块构造"}
+{"id":"q18","query":"长江 黄河 泥沙","relevant":["geo-001"],"kind":"lexical","note":"两河对比"}
+{"id":"q19","query":"季风 雨热同期","relevant":["geo-002"],"kind":"lexical","note":"夏季风"}
+{"id":"q20","query":"城市 热岛","relevant":["geo-007"],"kind":"lexical","note":"城区更热"}
+{"id":"q21","query":"科举 考试 选拔","relevant":["his-008"],"kind":"lexical","note":"以考试取代门第"}
+{"id":"q22","query":"物种交换 美洲作物","relevant":["his-005"],"kind":"lexical","note":"大航海之后"}
+{"id":"q23","query":"苏轼 贬谪","relevant":["ppl-001"],"kind":"lexical","note":"宋代文人"}
+{"id":"q24","query":"图灵 计算","relevant":["ppl-003"],"kind":"lexical","note":"可计算性与破译"}
+{"id":"q25","query":"咖啡因 代谢 半衰期","relevant":["life-004"],"kind":"lexical","note":"起效与清除"}
+{"id":"q26","query":"食物 低温 保存 原理","relevant":["life-003"],"kind":"lexical","note":"冷藏与冷冻差别"}
+{"id":"q27","query":"保险 免赔额 免责条款","relevant":["life-011"],"kind":"lexical","note":"保障型与储蓄型"}
+{"id":"q28","query":"切菜 眼睛 刺激 流泪 办法","relevant":["life-010"],"kind":"semantic","note":"洋葱:文档从未出现切菜/眼睛"}
+{"id":"q29","query":"办公室绿植老是养不活 根部发黑","relevant":["life-007"],"kind":"semantic","note":"室内植物:文档说浇水过频导致根部缺氧"}
+{"id":"q30","query":"小孩高烧不退是细菌感染吗","relevant":["life-006"],"kind":"semantic","note":"感冒与流感:文档未用高烧/细菌字样"}
+{"id":"q31","query":"为什么海边城市冬天不太冷","relevant":["sci-016"],"kind":"semantic","note":"比热容:文档用沿海与温差"}
+{"id":"q32","query":"最早的纸币出现在哪个朝代","relevant":["his-003"],"kind":"semantic","note":"宋代货币:文档写纸质货币"}
+{"id":"q33","query":"锻炼之后膝关节不舒服正常吗","relevant":["life-002"],"kind":"semantic","note":"跑姿与膝盖:文档用跑步与疼痛"}
+{"id":"q34","query":"傍晚天空为什么变红","relevant":["sci-008"],"kind":"semantic","note":"散射:文档用落日与红橙光"}
+{"id":"q35","query":"长期睡眠不足会影响什么","relevant":["sci-013"],"kind":"semantic","note":"睡眠周期:文档用熬夜与反应速度"}
+{"id":"q36","query":"索引落盘为什么要带校验","relevant":["tech-010"],"kind":"semantic","note":"段文件格式:文档用 CRC 与半截文件"}
+{"id":"q37","query":"书籍价格下降对思想传播的影响","relevant":["his-009"],"kind":"semantic","note":"印刷放大:文档用书籍价格与识字"}
+{"id":"q38","query":"把HTTP服务做进标准库的好处","relevant":["tech-019"],"kind":"semantic","note":"依赖减法:文档用框架与依赖树"}

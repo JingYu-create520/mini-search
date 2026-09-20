@@ -1,0 +1,39 @@
+name: ci
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    name: build, test and measure
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Compile and run the suite
+        run: mvn -B test
+      - name: Retrieval evaluation (recall@5 / nDCG@5 must not regress)
+        run: |
+          mvn -B -q -DskipTests package
+          java -jar target/mini-search.jar eval --corpus data/corpus --out data/eval/report.md
+          cat data/eval/report.md
+      - name: Fail if the report drifted below the acceptance bar
+        run: |
+          awk -F'|' '/^\| bm25 / {gsub(/ /,"",$3); if ($3+0 < 0.90) {print "bm25 recall@5 regressed: " $3; exit 1}}' data/eval/report.md
+          awk -F'|' '/^\| hybrid / {gsub(/ /,"",$3); if ($3+0 < 0.90) {print "hybrid recall@5 regressed: " $3; exit 1}}' data/eval/report.md
+      - name: Single jar smoke test (no corpus directory, no network, nothing installed)
+        run: |
+          cd /tmp
+          java -jar "$GITHUB_WORKSPACE/target/mini-search.jar" search "倒排索引" --topK 3
+          java -jar "$GITHUB_WORKSPACE/target/mini-search.jar" analyze "中文分词与倒排索引"
+          java -jar "$GITHUB_WORKSPACE/target/mini-search.jar" stats
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mini-search-jar
+          path: target/mini-search.jar

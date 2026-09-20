@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>dev.jingyu</groupId>
+  <artifactId>mini-search</artifactId>
+  <version>0.1.0</version>
+  <packaging>jar</packaging>
+
+  <name>mini-search</name>
+  <description>Local-first hybrid search engine for Chinese: hand-written inverted index (BM25) +
+    on-the-fly trained semantic vectors + HNSW + RRF fusion, in a single dependency-free jar.</description>
+  <url>https://github.com/JingYu-create520/mini-search</url>
+
+  <licenses>
+    <license>
+      <name>MIT License</name>
+      <url>https://opensource.org/licenses/MIT</url>
+    </license>
+  </licenses>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <junit.version>5.10.2</junit.version>
+  </properties>
+
+  <dependencies>
+    <!-- The engine deliberately has ZERO runtime dependencies.
+         Everything (HTTP server, JSON, Chinese analyser, embeddings, HNSW, crawler) is JDK-only,
+         so `java -jar mini-search.jar` never needs a model download or a network round trip.
+         Optional neural embeddings (ONNX/bge) live behind the Encoder SPI and are wired in at
+         runtime via the model-dir flag, never at compile time. -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <finalName>mini-search</finalName>
+    <resources>
+      <resource>
+        <directory>src/main/resources</directory>
+      </resource>
+      <!-- The demo corpus ships inside the jar, so `java -jar mini-search.jar` has something to
+           search with zero setup and zero downloads. -->
+      <resource>
+        <directory>data/corpus</directory>
+        <targetPath>corpus</targetPath>
+        <includes>
+          <include>*.jsonl</include>
+          <include>manifest.txt</include>
+        </includes>
+      </resource>
+    </resources>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.13.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.2.5</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-shade-plugin</artifactId>
+        <version>3.5.2</version>
+        <executions>
+          <execution>
+            <phase>package</phase>
+            <goals><goal>shade</goal></goals>
+            <configuration>
+              <createDependencyReducedPom>false</createDependencyReducedPom>
+              <transformers>
+                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                  <mainClass>dev.jingyu.ms.MiniSearch</mainClass>
+                </transformer>
+              </transformers>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+    </plugins>
+  </build>
+</project>

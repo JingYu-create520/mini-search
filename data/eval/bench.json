@@ -1,0 +1,1 @@
+{"documents":50000,"indexBuildSeconds":201.228,"docsPerSecond":248.474,"mining":true,"vectors":true,"terms":52204,"minedWords":495,"latency":{"bm25":{"p50ms":10.253,"maxms":44.562,"p95ms":35.238},"hybrid":{"p50ms":21.609,"maxms":95.235,"p95ms":75.613}},"queries":38,"jvmMaxHeapMB":8128,"usedHeapMB":856}
