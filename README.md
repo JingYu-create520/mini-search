@@ -141,7 +141,7 @@ Tools: `search`, `index_url`, `index_text`, `stats`. Companion skill: [`skills/m
 docker compose up --build      # http://localhost:9200
 ```
 
-> I have **not** run this: the Docker daemon was unavailable on the machine that built the project. The Dockerfile is a standard multi-stage build whose artifact is the same 180 KB jar; open an issue if it misbehaves.
+> Verified on this machine: `docker build` produces a 425 MB image, `docker compose up -d` starts it, and `:9200` serves both the stats and the search API with CJK intact. The first build is slow because Maven downloads its dependencies inside the container; the second one hits the cache.
 
 ## What each layer actually does
 

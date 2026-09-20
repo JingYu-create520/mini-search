@@ -160,7 +160,7 @@ MCP 客户端配置（以支持 stdio 的客户端通用格式为例）：
 docker compose up --build      # http://localhost:9200
 ```
 
-> Docker 这条我**没有在本机验证过**（这台机器的 daemon 没开）。Dockerfile 是标准多阶段写法，构建产物就是那个 180 KB 的 jar；如果你跑出问题，开 issue 我修。
+> 已在本机验证：`docker build` 产出 425 MB 镜像，`docker compose up -d` 起容器后 `:9200` 的统计与搜索接口均正常，中文不乱码。第一次构建慢，是因为容器里要下一遍 Maven 依赖，第二次走缓存。
 
 ## 每一层到底在做什么
 
