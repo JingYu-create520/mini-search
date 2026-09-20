@@ -40,8 +40,7 @@ import java.util.Map;
  */
 public final class MiniSearch {
 
-    public static void main(String[] args) throws Exception {
-        if (args.length > 0 && (args[0].equals("--help") || args[0].equals("-h"))) {
+    public static void main(String[] args) throws Exception {        if (args.length > 0 && (args[0].equals("--help") || args[0].equals("-h"))) {
             System.out.println(usage());
             return;
         }
@@ -105,6 +104,11 @@ public final class MiniSearch {
                   --epochs N     word2vec epochs
                   --stopwords    enable stopword removal (measurable, off by default)
                   --dict FILE    extra dictionary for the analyser
+                  --model DIR    local pretrained embeddings, e.g. models/bge-small-zh-v1.5
+                                 (needs scripts/fetch-model.sh and -cp libs/onnxruntime.jar)
+                  --pool cls|mean  dense pooling for the pretrained encoder (default cls)
+                  --no-instruct    drop the query-side instruction the Chinese BGE models expect
+                  --fusion a,b,c   RRF weights for [bm25, thesaurus, dense], e.g. 1,0.5,6
                   --rebuild      ignore any snapshot on disk
                   --quiet        no progress output
                 """;
@@ -257,6 +261,10 @@ public final class MiniSearch {
         if (opt.containsKey("no-mining")) o.mine = false;
         if (opt.containsKey("stopwords")) o.stopwords = true;
         if (opt.containsKey("dict")) o.dictPath = opt.get("dict");
+        if (opt.containsKey("model")) o.modelPath = opt.get("model");
+        if (opt.containsKey("pool")) o.clsPooling = !"mean".equalsIgnoreCase(opt.get("pool"));
+        if (opt.containsKey("no-instruct")) o.queryInstruction = false;
+        if (opt.containsKey("max-pieces")) o.maxWordPieces = Integer.parseInt(opt.get("max-pieces"));
         if (opt.containsKey("knn")) o.knn = opt.get("knn");
         if (opt.containsKey("epochs")) o.epochs = Integer.parseInt(opt.get("epochs"));
         if (opt.containsKey("dim")) o.dim = Integer.parseInt(opt.get("dim"));
@@ -282,6 +290,12 @@ public final class MiniSearch {
             }
         } else {
             e = Engine.restore(snap, o, docs);
+        }
+        if (opt.containsKey("fusion")) {
+            String[] parts = opt.get("fusion").split("[, ]+");
+            double[] w = new double[parts.length];
+            for (int i = 0; i < parts.length; i++) w[i] = Double.parseDouble(parts[i]);
+            e.searcher().setFusionWeights(w);
         }
         return e;
     }

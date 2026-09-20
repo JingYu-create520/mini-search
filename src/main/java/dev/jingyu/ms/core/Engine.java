@@ -66,6 +66,15 @@ public final class Engine {
          */
         public long minTokensForEmbeddings = 400_000;
         public boolean forceVectors = false;
+        /**
+         * Directory holding a local pretrained model (bge-small-zh ONNX + vocab.txt). When set, this
+         * replaces the corpus-trained encoder and the token gate above no longer applies -- a
+         * pretrained model is exactly what makes semantics work on a small corpus.
+         */
+        public String modelPath;
+        public boolean clsPooling = true;
+        public boolean queryInstruction = true;
+        public int maxWordPieces = 256;
 
         public Options stopword(boolean v) { stopwords = v; return this; }
         public Options mining(boolean v) { mine = v; return this; }
@@ -83,6 +92,7 @@ public final class Engine {
     private final List<String> minedWords = new ArrayList<>();
 
     private EmbeddingModel model;
+    private dev.jingyu.ms.vector.Encoder encoder;   // model, or a pretrained one when --model is given
     private VectorIndex vectors;
     private Searcher searcher;
     private dev.jingyu.ms.semantic.DistributedThesaurus thesaurus;
@@ -145,9 +155,50 @@ public final class Engine {
     /** Publish a fresh Searcher over whatever is currently built. */
     private Searcher publish() {
         searcher = new Searcher(index, bm25).setRrfK(options.rrfK);
-        if (model != null && vectors != null) searcher.enableVectors(model, vectors);
+        if (encoder != null && vectors != null) searcher.enableVectors(encoder, vectors);
         if (thesaurus != null) searcher.enableThesaurus(thesaurus);
         return searcher;
+    }
+
+    /**
+     * Swap in a local pretrained embedding model. This is the only route to real semantics on a small
+     * corpus, and it stays a flag rather than a default because the weights are 24 MB and the ONNX
+     * Runtime jar is 93 MB -- shipping those would void "the base jar has zero dependencies".
+     */
+    private void usePretrainedModel() {
+        java.nio.file.Path dir = java.nio.file.Path.of(options.modelPath);
+        long t0 = System.nanoTime();
+        try {
+            encoder = new dev.jingyu.ms.vector.OnnxEncoder(dir, options.clsPooling,
+                    options.maxWordPieces, options.queryInstruction,
+                    dev.jingyu.ms.vector.OnnxEncoder.hiddenSizeOf(dir));
+        } catch (Exception e) {
+            Log.warn("cannot load model from %s (%s); falling back to the corpus-trained path",
+                    dir, e.getMessage());
+            encoder = null;
+            return;
+        }
+        Log.info("pretrained encoder %s loaded from %s in %.1fs", encoder.name(), dir, Log.since(t0));
+        encodeDocuments(encoder);
+    }
+
+    /** One forward pass per document; the k-NN structure is chosen by size, as everywhere else. */
+    private void encodeDocuments(dev.jingyu.ms.vector.Encoder enc) {
+        List<Doc> docs = index.allDocs();
+        docs.sort(java.util.Comparator.comparingInt(Doc::id));
+        boolean useHnsw = "hnsw".equalsIgnoreCase(options.knn)
+                || ("auto".equalsIgnoreCase(options.knn) && docs.size() >= 2000);
+        vectors = useHnsw ? new Hnsw(enc.dimension(), options.hnswM, options.efConstruction, 42)
+                : new BruteForce(enc.dimension());
+        docVectorsById.clear();
+        long t0 = System.nanoTime();
+        for (Doc d : docs) {
+            float[] v = enc.encode(d.vectorText());
+            docVectorsById.put(d.id(), v);
+            vectors.add(d.id(), v);
+        }
+        Log.info("encoded %d documents with %s in %.1fs (%.0f ms/doc)",
+                docs.size(), enc.name(), Log.since(t0), Log.ms(t0) / Math.max(1, docs.size()));
     }
 
     /** Corpus-derived thesaurus; the semantic model that works without a big training corpus. */
@@ -187,7 +238,8 @@ public final class Engine {
         for (Corpus.RawDoc d : docs) e.addRaw(d);
         Log.info("inverted index built: %s in %.1fs", e.index, Log.since(t1));
 
-        if (options.trainVectors && e.enoughTextForEmbeddings()) e.trainVectors(docs);
+        if (options.modelPath != null && !options.modelPath.isBlank()) e.usePretrainedModel();
+        else if (options.trainVectors && e.enoughTextForEmbeddings()) e.trainVectors(docs);
         e.buildThesaurus();
         e.publish();
         return e;
@@ -209,6 +261,7 @@ public final class Engine {
         model = new EmbeddingModel(analyzer, idf, cfg);
         model.train(new ArrayList<>(tokens.values()));
         buildVectorIndex(tokens);
+        encoder = model;
         Log.info("vector layer ready: %s in %.1fs", vectors == null ? "off" : vectors.name(), Log.since(t0));
     }
 
@@ -262,7 +315,8 @@ public final class Engine {
 
     /** Rebuild the semantic layer after documents changed; cheap compared with re-mining. */
     public void refreshVectors() {
-        if (options.trainVectors && enoughTextForEmbeddings()) trainAndIndexVectors();
+        if (encoder instanceof dev.jingyu.ms.vector.OnnxEncoder onnx) encodeDocuments(onnx);
+        else if (options.trainVectors && enoughTextForEmbeddings()) trainAndIndexVectors();
         else buildVectorIndex(snapshotTokens());
         publish();
     }
@@ -287,7 +341,7 @@ public final class Engine {
         m.put("mining", options.mine);
         m.put("bm25", Map.of("k1", options.k1, "b", options.b, "boosts", options.boosts));
         m.put("rrfK", options.rrfK);
-        m.put("encoder", model == null ? "off" : model.name());
+        m.put("encoder", encoder == null ? "off" : encoder.name());
         m.put("vocabulary", model == null ? 0 : model.vocabularySize());
         m.put("thesaurusEntries", thesaurus == null ? 0 : thesaurus.size());
         m.put("knn", vectors == null ? "off" : vectors.name());
@@ -357,6 +411,11 @@ public final class Engine {
             }
 
             Snapshot.StoredVectors sv = Snapshot.readVectors(s.raw("vectors"));
+            if (sv.docIds().length > 0 && (s.model() == null || s.model().length == 0)
+                    && (options.modelPath == null || options.modelPath.isBlank())) {
+                Log.warn("snapshot holds %d vectors written by an external model but none was passed;"
+                        + " the dense path stays off. Re-run with --model DIR", sv.docIds().length);
+            }
             if (sv.docIds().length > 0 && s.model() != null && s.model().length > 0) {
                 Idf idf = new Idf(e.index.documentFrequencies(), Math.max(1, e.index.numDocs()));
                 EmbeddingModel.Config cfg = new EmbeddingModel.Config();
@@ -371,8 +430,14 @@ public final class Engine {
                     e.vectors.add(sv.docIds()[i], sv.vectors()[i]);
                 }
             }
+            // a snapshot never carries the pretrained model, only the vectors it produced: reload the
+            // encoder so queries use the same model the stored documents were encoded with
+            if (e.vectors != null && e.model != null) e.encoder = e.model;
             e.buildThesaurus();
-            e.publish();
+            if (options.modelPath != null && !options.modelPath.isBlank()) {
+                e.usePretrainedModel();
+                e.publish();
+            }
             Log.info("restored %s from %s", e.index, file.getFileName());
             return e;
         } catch (IOException | RuntimeException ex) {

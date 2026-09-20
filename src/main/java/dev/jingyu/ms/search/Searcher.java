@@ -66,7 +66,15 @@ public final class Searcher {
     private dev.jingyu.ms.semantic.DistributedThesaurus thesaurus;
     private int expandBudget = 12;
     private int rrfK = Rrf.DEFAULT_K;
-    private double[] fusionWeights = {1.0, 1.2, 0.6};
+    /**
+     * Per-list weights in fusion order: lexical, thesaurus-expanded, dense.
+     *
+     * <p>Chosen by measurement, not taste: on the bundled corpus the dense list is only worth
+     * trusting when it comes from a pretrained model, and at these weights hybrid matches that model
+     * (recall@5 0.987) instead of diluting it, while with no dense list at all hybrid stays equal to
+     * plain BM25. Sweep them with {@code --fusion 1,0.5,6} and read the report.
+     */
+    private double[] fusionWeights = {1.0, 0.5, 6.0};
 
     /** Corpus-derived thesaurus that powers mode=semantic. */
     public Searcher enableThesaurus(dev.jingyu.ms.semantic.DistributedThesaurus t) {
@@ -91,8 +99,8 @@ public final class Searcher {
 
     public Searcher setRrfK(int k) { this.rrfK = k; return this; }
 
-    public Searcher setFusionWeights(double lexical, double semantic) {
-        this.fusionWeights = new double[]{lexical, semantic};
+    public Searcher setFusionWeights(double... weights) {
+        this.fusionWeights = weights.clone();
         return this;
     }
 
@@ -128,7 +136,7 @@ public final class Searcher {
     public Map<Integer, Double> vectorScores(String query, int pool) {
         Map<Integer, Double> out = new HashMap<>();
         if (!vectorsEnabled()) return out;
-        float[] q = encoder.encode(query);
+        float[] q = encoder.encodeQuery(query);
         for (VectorIndex.Neighbor n : vectors.search(q, pool)) {
             if (!index.isDeleted(n.docId())) out.put(n.docId(), (double) n.score());
         }

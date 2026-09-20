@@ -5,7 +5,17 @@ public interface Encoder {
 
     int dimension();
 
+    /** Turns text into a unit-length vector. */
     float[] encode(String text);
+
+    /**
+     * Query-side encoding. Models that were fine-tuned with an instruction prefix on the query side
+     * only (BGE's Chinese models do) need this to be different from document encoding; every other
+     * encoder just delegates.
+     */
+    default float[] encodeQuery(String text) {
+        return encode(text);
+    }
 
     /** Stable identifier written into snapshots and shown in /stats. */
     String name();

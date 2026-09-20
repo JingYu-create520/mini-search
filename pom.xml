@@ -39,6 +39,16 @@
       <version>${junit.version}</version>
       <scope>test</scope>
     </dependency>
+    <!-- ONNX Runtime is `provided`: OnnxEncoder compiles against it, the shaded jar does not contain
+         it, and the base jar therefore still has zero runtime dependencies. Run the pretrained
+         semantic path with  java -cp "mini-search.jar;libs/onnxruntime.jar"  (scripts/fetch-model.sh
+         puts both in place). -->
+    <dependency>
+      <groupId>com.microsoft.onnxruntime</groupId>
+      <artifactId>onnxruntime</artifactId>
+      <version>1.19.2</version>
+      <scope>provided</scope>
+    </dependency>
   </dependencies>
 
   <build>

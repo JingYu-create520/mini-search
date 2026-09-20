@@ -2,7 +2,7 @@
 
 **A local-first hybrid search engine for Chinese that fits in a laptop bag.** Crawler → hand-written Chinese analyser → inverted index (BM25) → corpus-trained word vectors + HNSW → RRF fusion → web UI.
 
-One 180 KB jar. **Zero runtime dependencies, no external services, no model downloads.** Your data never leaves the machine, and every layer is small enough for one person to read.
+One 213 KB jar. **Zero runtime dependencies, no external services, no model download by default.** (A 24 MB local bge model can be added with one script if you want the strongest semantics — still fully offline.) Your data never leaves the machine, and every layer is small enough for one person to read.
 
 ```bash
 java -jar mini-search.jar          # then open http://localhost:9200
@@ -30,26 +30,41 @@ So the constraints are deliberate:
 
 ## Measured quality — 38 hand-labelled queries, k=5
 
+Out of the box (zero dependencies, no model):
+
 | mode | recall@5 | precision@5 | nDCG@5 | MRR | queries with a top-5 hit |
 |---|---|---|---|---|---|
 | bm25 | 0.934 | 0.254 | 0.912 | 0.918 | 36/38 |
 | semantic (thesaurus expansion) | 0.934 | 0.216 | 0.899 | 0.898 | 36/38 |
-| hybrid (RRF) | **0.934** | 0.216 | **0.918** | **0.923** | 36/38 |
+| hybrid (RRF) | **0.934** | 0.216 | **0.916** | **0.923** | 36/38 |
 
-Split by query type, where `semantic` queries are written so the target document **does not contain the query words**:
+With the optional local model (`scripts/fetch-model.sh`, 24 MB bge-small-zh in ONNX, still offline):
+
+| mode | recall@5 | nDCG@5 | MRR | queries with a top-5 hit |
+|---|---|---|---|---|
+| bm25 | 0.934 | 0.912 | 0.918 | 36/38 |
+| hybrid | **0.987** | 0.955 | 0.954 | **38/38** |
+| vector | **0.987** | **0.957** | 0.961 | **38/38** |
+
+Split by query type, where `semantic` queries are written so the target document **does not contain the query words** (no-model run):
 
 | | bm25 | hybrid |
 |---|---|---|
 | lexical-match queries | 0.981 / 0.983 | 0.981 / **0.986** |
 | word-mismatch queries | 0.818 / 0.739 | 0.818 / **0.751** |
 
-Two queries still miss entirely: *"does a child's persistent fever mean a bacterial infection"* (target: a document about cold vs. flu) and *"why are coastal cities mild in winter"* (target: a document about specific heat capacity). That is a genuine synonym-knowledge gap that neither lexical matching nor a corpus-derived co-occurrence table closes — it needs pretrained embeddings. See [the vector gate](#the-vector-layer-honest-about-its-own-data-requirement).
+Two queries miss entirely on the zero-dependency path: *"does a child's persistent fever mean a bacterial infection"* (target: a document about cold vs. flu) and *"why are coastal cities mild in winter"* (target: a document about specific heat capacity). That is a genuine synonym-knowledge gap that neither lexical matching nor a corpus-derived co-occurrence table closes. **Both come back once the local bge model is loaded — 38/38.**
 
 Reproduce:
 
 ```bash
 mvn -B package && java -jar target/mini-search.jar eval
+scripts/fetch-model.sh
+java -cp "target/mini-search.jar;libs/onnxruntime.jar" dev.jingyu.ms.MiniSearch \
+     eval --model models/bge-small-zh-v1.5 --out data/eval/report-bge.md
 ```
+
+Both reports are committed: `data/eval/report.md` and `data/eval/report-bge.md`. The fusion weights are swept, not guessed (`--fusion 1,0.5,6`); the reasoning is in the next section.
 
 ## Scale — 50,000 documents
 
@@ -71,17 +86,17 @@ Single machine, zero dependencies, laptop, ten-millisecond queries at 50k docume
 | `index/` | 479 | inverted index, varbyte postings, positions, delete bitmap, phrase merge |
 | `ranking/` | 82 | BM25 with tunable k1/b and per-field boosts |
 | `hybrid/` | 76 | RRF and weighted score fusion |
-| `vector/` | 717 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
+| `vector/` | 1054 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
 | `semantic/` | 145 | distributed thesaurus (co-occurrence cosine) — the semantic model that works on small corpora |
-| `search/` | 405 | query orchestration, four modes, highlighting |
+| `search/` | 413 | query orchestration, four modes, highlighting |
 | `crawl/` | 726 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction |
 | `api/` | 311 | routes and static assets on the JDK HTTP server |
-| `core/` | 769 | engine assembly, CRC-checked snapshot, corpus loading |
+| `core/` | 844 | engine assembly, CRC-checked snapshot, corpus loading |
 | `eval/` | 349 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 194 | MCP server over stdio JSON-RPC |
-| `util/` + CLI | 637 | JSON, varbyte, logging, commands |
-| **main** | **5,573** | 36 files |
-| tests | 934 | 49 cases |
+| `util/` + CLI | 649 | JSON, varbyte, logging, commands |
+| **main** | **6,005** | 38 files |
+| tests | 1057 | 53 cases |
 | UI | 213 | single-file search page + index admin page |
 
 ## Architecture
@@ -170,7 +185,11 @@ So two things happen:
 
 The gate is calibrated, not guessed: at 50k documents the same code trains a 30k-word vocabulary over 51M updates and builds the HNSW graph, and hybrid costs only ~2× BM25 latency. Plenty of data → it participates. Not enough → it stays out of the way.
 
-Plugging a pretrained model in is left as a seam: `vector/Encoder` is an interface, so an ONNX/bge implementation touches nothing else. There is **no bundled model today**, which is exactly why the vector layer depends on corpus size.
+**Optional: a real pretrained model, locally.** `scripts/fetch-model.sh` pulls bge-small-zh-v1.5 as int8 ONNX (24 MB) plus ONNX Runtime from hf-mirror, which works from a mainland-China connection without a proxy; `--model models/bge-small-zh-v1.5` swaps the encoder and the token gate stops applying, because a pretrained model is precisely what makes semantics work on a small corpus. Measured: recall@5 0.934 → 0.987, and the two impossible queries come back.
+
+It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 213 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
+
+Two model-specific traps are exposed as flags because both change ranking: `--pool cls|mean` (BGE ships with CLS pooling; mean still runs and still looks plausible) and the query-side instruction prefix (`为这个句子生成表示以用于检索文章：`, which the Chinese BGE models expect on queries only). Defaults are the measured-better side of each.
 
 ### HNSW: correct first, then fast
 
@@ -199,7 +218,7 @@ Tests run against a local HTTP server and never touch the internet: 404, 500, a 
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 49 cases
+mvn -B test                         # 53 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/regold.sh                   # after an intentional analyser change

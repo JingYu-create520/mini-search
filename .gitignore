@@ -9,3 +9,5 @@ web/node_modules/
 web/dist/
 .DS_Store
 dependency-reduced-pom.xml
+models/
+libs/

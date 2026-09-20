@@ -8,7 +8,7 @@
 ## GitHub → Settings → Description（一个输入框）
 
 ```
-Local-first hybrid search engine for Chinese: hand-written analyser, inverted index (BM25), distributed thesaurus, self-trained word vectors + HNSW, RRF fusion. One 180KB jar, zero runtime dependencies, no model download.
+Local-first hybrid search engine for Chinese: hand-written analyser, inverted index (BM25), distributed thesaurus, self-trained word vectors + HNSW, RRF fusion. One 213KB jar, zero runtime dependencies, no model download.
 ```
 
 ## GitHub → Settings → Topics（逐个回车）
@@ -37,7 +37,7 @@ inverted-index
 **Title（67 字符，HN 上限 80）**
 
 ```
-Show HN: A local-first Chinese hybrid search engine in a 180KB jar
+Show HN: A local-first Chinese hybrid search engine in a 213KB jar
 ```
 
 **URL**
@@ -51,8 +51,8 @@ https://github.com/JingYu-create520/mini-search
 ```
 Everything in here is hand-written on purpose: the Chinese analyser, the inverted index, BM25, SGNS
 word vectors, HNSW, RRF fusion, the polite crawler, the main-text extractor, the HTTP server and the
-JSON parser. No Lucene, no HanLP, no Spring, no vector DB, no model download. Total: 5,573 lines of
-main code in 36 files, and the jar is 180KB.
+JSON parser. No Lucene, no HanLP, no Spring, no vector DB, no model download. Total: 6,005 lines of
+main code in 38 files, and the jar is 213KB.
 
 The reason for not importing anything is narrow: I wanted every layer to be small enough to read, and
 that promise dies the moment "the search part" is a black-box dependency.
@@ -99,7 +99,7 @@ I wrote a local-first hybrid search engine for Chinese in 5.5k lines of dependen
 ```
 What it is: crawler -> hand-written Chinese analyser (dictionary + statistical new-word mining) ->
 inverted index with BM25 -> distributed thesaurus and/or self-trained word vectors with HNSW -> RRF
-fusion -> web UI. One 180KB jar. No Lucene, no HanLP, no Spring, no vector DB, and no model download,
+fusion -> web UI. One 213KB jar. No Lucene, no HanLP, no Spring, no vector DB, and no model download,
 so it runs fully offline.
 
 Repo: https://github.com/JingYu-create520/mini-search
@@ -135,7 +135,7 @@ an MCP server so agents can use it as a local Google.
 **标题**
 
 ```
-我从零写了一个能搜中文的搜索引擎：5573 行、零依赖、180KB 一个 jar
+我从零写了一个能搜中文的搜索引擎：6005 行、零依赖、213KB 一个 jar
 ```
 
 **正文**：直接用仓库里的 `docs/ARTICLE.zh-CN.md`（已按掘金 Markdown 写好，含表格与代码块）。
@@ -149,14 +149,14 @@ an MCP server so agents can use it as a local Google.
 **标题**
 
 ```
-[开源] 本地优先的中文混合搜索引擎：自研分词+倒排+BM25+HNSW+RRF，5573 行零依赖，一个 180KB jar
+[开源] 本地优先的中文混合搜索引擎：自研分词+倒排+BM25+HNSW+RRF，6005 行零依赖，一个 213KB jar
 ```
 
 **正文**
 
 ```
 写了一个能搜中文的本地搜索引擎，全部手写：没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，
-也没有任何需要下载的模型。主代码 5573 行 / 36 个文件，jar 180KB，运行时零依赖。
+也没有任何需要下载的模型（想要最强语义可以一条命令加装 24MB 的本地 bge 模型，仍然离线）。主代码 6005 行 / 38 个文件，jar 213KB，运行时零依赖。
 
 java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar 里，断网可用。
 
@@ -192,7 +192,7 @@ java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar �
 
 ## 发布前自检（我已经做完的部分标了 ✅）
 
-- ✅ 49 个测试全绿；`mvn -B package` 出 180KB jar；无关目录下 `java -jar` 冷启动可搜
+- ✅ 49 个测试全绿；`mvn -B package` 出 213KB jar；无关目录下 `java -jar` 冷启动可搜
 - ✅ README 双语、GIF 是真界面（`?tour=1` 自走）、评测与基准数字已提交进仓库
 - ✅ LICENSE(MIT)、CI 工作流（测试 + 评测门槛 + jar 冒烟）、Dockerfile/compose
 - ✅ Docker 已在本机验证：`docker build` 出 425MB 镜像，`docker compose up -d` 后 `:9200` 的统计与搜索接口均正常，中文不乱码
