@@ -10,6 +10,10 @@ java -jar mini-search.jar          # 然后打开 http://localhost:9200
 
 这一句就能用：演示语料打在 jar 里，不需要联网，不需要装数据库，不需要下载权重。
 
+![demo](docs/demo.gif)
+
+录屏里那 5 条查询都是真实请求，界面自己走完的：`http://localhost:9200/?tour=1`（帧由 `scripts/record-demo.sh` 抓）。想直达某一条：`?q=索引落盘为什么要带校验&mode=bm25`。
+
 ---
 
 ## 为什么要做这个

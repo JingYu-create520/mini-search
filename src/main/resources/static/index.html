@@ -208,6 +208,45 @@ $("#cfetch").addEventListener("click", async () => {
 });
 
 if (!location.search.includes("nofocus")) $("#q").focus();
+
+/* ---------------------------------------------------------------- deep links & tour
+
+   `?q=…&mode=…` opens straight on a result, which makes a search shareable.
+   `?tour=1` walks a short scripted sequence: it is what `scripts/record-demo.sh`
+   records, so the demo GIF is produced from the real UI rather than a mock-up. */
+const params = new URLSearchParams(location.search);
+const TOUR = [
+  { q: "倒排索引", mode: "hybrid", hold: 2600 },
+  { q: "索引落盘为什么要带校验", mode: "hybrid", hold: 3200 },
+  { q: "索引落盘为什么要带校验", mode: "bm25", hold: 2600 },
+  { q: "切菜时眼睛受到刺激流泪怎么办", mode: "semantic", hold: 3400 },
+  { q: "板块相撞会抬升出山脉并形成海沟", mode: "hybrid", hold: 2800 },
+  { q: "", mode: "hybrid", hold: 1500, admin: true },
+];
+
+async function runTour() {
+  await sleep(1200);                       // let the page settle before anything moves
+  for (const step of TOUR) {
+    if (step.admin) { $("#tab-admin").click(); await sleep(900); await loadStats(); await sleep(step.hold); continue; }
+    $("#tab-search").click();
+    $("#mode").value = step.mode;
+    await typeInto(step.q);
+    await search();
+    await sleep(step.hold);
+  }
+  $("#q").focus();
+}
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/** Retype the query character by character so a recording shows a human typing it. */
+async function typeInto(text) {
+  $("#q").value = "";
+  for (const ch of text) { $("#q").value += ch; await sleep(42); }
+}
+
+if (params.get("tour")) runTour();
+else if (params.get("q")) { $("#q").value = params.get("q"); if (params.get("mode")) $("#mode").value = params.get("mode"); search(); }
 </script>
 </body>
 </html>

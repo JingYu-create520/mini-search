@@ -10,6 +10,10 @@ java -jar mini-search.jar          # then open http://localhost:9200
 
 That is the whole setup. The demo corpus ships inside the jar: no network, no database, no weights to fetch.
 
+![demo](docs/demo.gif)
+
+Every query in that recording is a real request. The page drives itself at `http://localhost:9200/?tour=1`, and `scripts/record-demo.sh` grabs the frames. To land on one query directly: `?q=索引落盘为什么要带校验&mode=bm25`.
+
 [中文 README](README.zh-CN.md) · [design doc](docs/PLAN.md) · [evaluation report](data/eval/report.md) · [benchmark](data/eval/bench.json)
 
 ---
