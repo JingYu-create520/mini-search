@@ -83,6 +83,11 @@ benchmark corpus because recombined sentences destroy co-occurrence sparsity.
 Java 17. `java -jar mini-search.jar` -> http://localhost:9200, demo corpus inside the jar. There is
 also an MCP server (`mcp` subcommand) so an agent can use it as a local Google. If you don't want to
 build: the jar is attached to the v0.1.0 release (213KB, one file).
+
+On how this was written: I designed it, wrote the plan doc, and made every judgement call, with an AI
+pair-programming the implementation. The four numbers above are mine because I ran them -- `eval` and
+`bench` reproduce all of them in two commands, and `docs/PLAN.md` records where the measurements
+contradicted my original design.
 ```
 
 ---
