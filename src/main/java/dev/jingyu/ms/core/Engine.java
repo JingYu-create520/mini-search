@@ -94,7 +94,7 @@ public final class Engine {
     private EmbeddingModel model;
     private dev.jingyu.ms.vector.Encoder encoder;   // model, or a pretrained one when --model is given
     private VectorIndex vectors;
-    private Searcher searcher;
+    private volatile Searcher searcher;   // republished on every mutation; readers never take a lock
     private dev.jingyu.ms.semantic.DistributedThesaurus thesaurus;
     private long fingerprint;
     private final Map<Integer, float[]> docVectorsById = new LinkedHashMap<>();
@@ -165,7 +165,7 @@ public final class Engine {
      * corpus, and it stays a flag rather than a default because the weights are 24 MB and the ONNX
      * Runtime jar is 93 MB -- shipping those would void "the base jar has zero dependencies".
      */
-    private void usePretrainedModel() {
+    private synchronized void usePretrainedModel() {
         java.nio.file.Path dir = java.nio.file.Path.of(options.modelPath);
         long t0 = System.nanoTime();
         try {
@@ -201,7 +201,7 @@ public final class Engine {
     }
 
     /** Corpus-derived thesaurus; the semantic model that works without a big training corpus. */
-    public dev.jingyu.ms.semantic.DistributedThesaurus buildThesaurus() {
+    public synchronized dev.jingyu.ms.semantic.DistributedThesaurus buildThesaurus() {
         long t0 = System.nanoTime();
         thesaurus = dev.jingyu.ms.semantic.DistributedThesaurus.build(
                 index, index.allDocs(), analyzer, 8, 2, 0.08);
@@ -297,7 +297,13 @@ public final class Engine {
 
     // ------------------------------------------------------------------ incremental
 
-    public Doc addRaw(Corpus.RawDoc raw) {
+    /**
+     * Every mutation of the live index goes through a {@code synchronized} method on this
+     * instance: the HTTP server runs a thread pool, and {@code POST /api/index},
+     * {@code DELETE /api/index} and {@code POST /api/crawl} can all arrive at once. Readers
+     * need no lock because they only ever take the {@code volatile} {@link #searcher}.
+     */
+    public synchronized Doc addRaw(Corpus.RawDoc raw) {
         Map<String, String> f = new LinkedHashMap<>();
         f.put(Doc.TITLE, raw.title());
         f.put(Doc.BODY, raw.body());
@@ -310,10 +316,10 @@ public final class Engine {
         return addRaw(new Corpus.RawDoc(id, url, title, body, tags));
     }
 
-    public boolean delete(String id) { return index.deleteByExternalId(id); }
+    public synchronized boolean delete(String id) { return index.deleteByExternalId(id); }
 
     /** Rebuild the semantic layer after documents changed; cheap compared with re-mining. */
-    public void refreshVectors() {
+    public synchronized void refreshVectors() {
         if (encoder != null && encoder.pretrained()) encodeDocuments(encoder);
         else if (options.trainVectors && enoughTextForEmbeddings()) trainAndIndexVectors();
         else buildVectorIndex(snapshotTokens());

@@ -31,14 +31,17 @@ import java.util.concurrent.Executors;
 public final class HttpApi {
 
     private final Engine engine;
-    private final Searcher searcher;
     private final int port;
     private HttpServer server;
 
     public HttpApi(Engine engine, int port) {
         this.engine = engine;
-        this.searcher = engine.searcher();
         this.port = port;
+    }
+
+    /** Port the server actually bound to; 0 was accepted for tests. */
+    public int boundPort() {
+        return server == null ? port : server.getAddress().getPort();
     }
 
     private dev.jingyu.ms.crawl.Crawler crawler;
@@ -89,7 +92,10 @@ public final class HttpApi {
             return;
         }
         long t0 = System.nanoTime();
-        Searcher.Result r = searcher.search(text, mode, topK, from, phrase, highlight);
+        // Fetched per request, not cached at construction: POST /api/index and /api/crawl
+        // republish the engine's Searcher, and a cached reference kept serving a server whose
+        // vector and thesaurus layers stayed switched off no matter what was indexed.
+        Searcher.Result r = engine.searcher().search(text, mode, topK, from, phrase, highlight);
         Map<String, Object> body = new LinkedHashMap<>(r.toMap());
         body.put("query", text);
         send(ex, 200, Json.write(body));
