@@ -1,21 +1,17 @@
 # mini-search
 
-**A local-first hybrid search engine for Chinese that fits in a laptop bag.** Crawler → hand-written Chinese analyser → inverted index (BM25) → corpus-trained word vectors + HNSW → RRF fusion → web UI.
-
-One 213 KB jar. **Zero runtime dependencies, no external services, no model download by default.** (A 24 MB local bge model can be added with one script if you want the strongest semantics — still fully offline.) Your data never leaves the machine, and every layer is small enough for one person to read.
+A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 213 KB jar with no runtime dependencies.
 
 ```bash
 java -jar mini-search.jar          # then open http://localhost:9200
 ```
 
-That is the whole setup. The demo corpus ships inside the jar: no network, no database, no weights to fetch.
-
-Rather than build it? Download the file (213 KB; needs Java 17 and nothing else):
-**<https://github.com/JingYu-create520/mini-search/releases/latest/download/mini-search.jar>**
+The demo corpus ships inside the jar, so it works with the network unplugged. If you would rather not build it, download the file; Java 17 is the only requirement:
+<https://github.com/JingYu-create520/mini-search/releases/latest/download/mini-search.jar>
 
 ![demo](docs/demo.gif)
 
-Every query in that recording is a real request. The page drives itself at `http://localhost:9200/?tour=1`, and `scripts/record-demo.sh` grabs the frames. To land on one query directly: `?q=索引落盘为什么要带校验&mode=bm25`.
+Every query in that recording is a real request. The page runs the tour itself at `http://localhost:9200/?tour=1`; `scripts/record-demo.sh` grabs the frames. To land on one query directly: `?q=索引落盘为什么要带校验&mode=bm25`.
 
 [中文 README](README.zh-CN.md) · [design doc](docs/PLAN.md) · [evaluation report](data/eval/report.md) · [benchmark](data/eval/bench.json)
 
@@ -23,13 +19,13 @@ Every query in that recording is a real request. The page drives itself at `http
 
 ## The gap this fills
 
-Chinese search tutorials usually stop at "it runs". Industrial engines are usually too heavy to read. Nothing sits in between: **a complete product shape that you can both demo on the spot and explain layer by layer.**
+Chinese search tutorials usually stop at "it runs", and industrial engines are too heavy to read end to end. Nothing sits in between: something you can demo on the spot and still explain layer by layer.
 
-So the constraints are deliberate:
+So there are no third-party libraries here. HTTP comes from the JDK, and the JSON parser, analyser, HNSW graph and main-text extractor are all in this repo. Not a preference for wheel-spinning — import Lucene and "every layer is readable" stops being true.
 
-- **No Lucene, no HanLP, no Spring, no vector database.** HTTP is the JDK's own `HttpServer`. JSON, the analyser, HNSW and main-text extraction are all here, because importing them would void the promise that every layer is readable.
-- **Every claim carries a reproducible number.** `mini-search eval` for quality, `mini-search bench` for scale. Both outputs are committed to this repo, so a ranking change is judged by a diff in a table, not by vibes.
-- **Failure modes are documented in the README**, not in a footnote three commits later. See [Known limits](#known-limits).
+The other rule was that every claim needs a number you can reproduce. `mini-search eval` for quality, `mini-search bench` for scale, both outputs committed under `data/eval/`. Break the ranking and the table shows it.
+
+What it cannot do is listed at the end, in the open, rather than three commits down in an issue thread.
 
 ## Measured quality — 38 hand-labelled queries, k=5
 

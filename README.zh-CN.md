@@ -1,33 +1,29 @@
 # mini-search
 
-**一个能装进笔记本的本地优先中文混合搜索引擎。** 爬虫 → 自研中文分词 → 倒排索引(BM25) → 语料自训词向量 + HNSW → RRF 融合 → Web 界面。
-
-单个 213 KB 的 jar，**运行时零依赖、零外部服务、默认不下载任何模型**（想要更强的语义可以一条命令加装 24 MB 的本地 bge 模型，仍然离线）。数据全在你机器上，而且每一层都小到能被一个人读完。
+本地优先的中文混合搜索引擎。爬虫、中文分词、倒排索引、BM25、词向量、HNSW、RRF 融合、Web 界面，全都自己写的，一个 213 KB 的 jar，运行时零依赖。
 
 ```bash
 java -jar mini-search.jar          # 然后打开 http://localhost:9200
 ```
 
-这一句就能用：演示语料打在 jar 里，不需要联网，不需要装数据库，不需要下载权重。
-
-不想自己构建？直接下载这个文件（213 KB，机器上有 Java 17 就行）：
-**<https://github.com/JingYu-create520/mini-search/releases/latest/download/mini-search.jar>**
+演示语料在 jar 里面，所以断网也能跑。不想自己构建就直接下这个文件，机器上有 Java 17 就行：
+<https://github.com/JingYu-create520/mini-search/releases/latest/download/mini-search.jar>
 
 ![demo](docs/demo.gif)
 
-录屏里那 5 条查询都是真实请求，界面自己走完的：`http://localhost:9200/?tour=1`（帧由 `scripts/record-demo.sh` 抓）。想直达某一条：`?q=索引落盘为什么要带校验&mode=bm25`。
+GIF 里那五条查询都是真跑出来的。界面会自己走一遍演示：`http://localhost:9200/?tour=1`。想直接看某一条：`?q=索引落盘为什么要带校验&mode=bm25`。
 
 ---
 
-## 为什么要做这个
+## 为什么写这个
 
-中文检索的教学项目通常停在"能跑"，工业引擎通常重到没法读。这两者之间有一块空白：**一个既能当场演示、又能逐层讲清楚的完整产品形态。**
+教程式的中文检索项目大多停在"能跑"，工业引擎又重到没人读完。中间这块是空的：一个能当场演示、又能一层层讲清楚的完整东西。
 
-所以这个仓库的取舍很明确：
+所以我没引第三方库。HTTP 用 JDK 自带的 `HttpServer`，JSON、分词、HNSW、正文抽取都手写。这不是偏爱造轮子——一旦引入 Lucene，"每层都能读懂"这句话就作废了。
 
-- **不用 Lucene、不用 HanLP、不用 Spring、不用向量数据库。** HTTP 用 JDK 自带的 `HttpServer`，JSON 自己写，分词自己写，HNSW 自己写，正文抽取自己写。不是因为造轮子有意思，而是因为一旦引入这些，"每一层都能读懂"这句话就作废了。
-- **每个说法后面都跟着一个可复现的数字。** 想看质量：`mini-search eval`；想看规模：`mini-search bench`。两个命令的输出都在仓库里（`data/eval/report.md`、`data/eval/bench.json`），改一行排序代码，数字就会告诉你变好还是变坏。
-- **做不到的地方直接写在 README 里。** 见文末"已知边界"。
+另一条要求是每个说法都能被验证。质量跑 `mini-search eval`，规模跑 `mini-search bench`，两份输出都提交在仓库里（`data/eval/`）。改坏排序会被数字抓到。
+
+做不到的地方写在文末"已知边界"里。
 
 ## 实测质量（38 条人工标注查询，k=5）
 
