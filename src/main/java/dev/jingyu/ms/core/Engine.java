@@ -169,9 +169,8 @@ public final class Engine {
         java.nio.file.Path dir = java.nio.file.Path.of(options.modelPath);
         long t0 = System.nanoTime();
         try {
-            encoder = new dev.jingyu.ms.vector.OnnxEncoder(dir, options.clsPooling,
-                    options.maxWordPieces, options.queryInstruction,
-                    dev.jingyu.ms.vector.OnnxEncoder.hiddenSizeOf(dir));
+            encoder = dev.jingyu.ms.vector.Encoder.loadPretrained(dir, options.clsPooling,
+                    options.maxWordPieces, options.queryInstruction);
         } catch (Exception e) {
             Log.warn("cannot load model from %s (%s); falling back to the corpus-trained path",
                     dir, e.getMessage());
@@ -315,7 +314,7 @@ public final class Engine {
 
     /** Rebuild the semantic layer after documents changed; cheap compared with re-mining. */
     public void refreshVectors() {
-        if (encoder instanceof dev.jingyu.ms.vector.OnnxEncoder onnx) encodeDocuments(onnx);
+        if (encoder != null && encoder.pretrained()) encodeDocuments(encoder);
         else if (options.trainVectors && enoughTextForEmbeddings()) trainAndIndexVectors();
         else buildVectorIndex(snapshotTokens());
         publish();

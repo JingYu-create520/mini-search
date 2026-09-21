@@ -92,6 +92,9 @@ public final class OnnxEncoder implements Encoder, AutoCloseable {
 
     @Override public String name() { return "bge-small-zh(onnx," + (clsPooling ? "cls" : "mean") + ")"; }
 
+    /** Loaded from a downloaded model directory, not trained on the corpus at hand. */
+    @Override public boolean pretrained() { return true; }
+
     public String modelFile() { return "bge-small-zh-v1.5 int8"; }
 
     public WordPieceTokenizer tokenizer() { return tokenizer; }

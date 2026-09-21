@@ -165,6 +165,12 @@ public final class EvalHarness {
         System.out.println("# report written to " + out);
     }
 
+    /**
+     * Render the committed report. Line endings are literal {@code \n} rather than {@code %n}
+     * on purpose: this file is checked in and compared byte-for-byte after a regeneration, and
+     * on Windows {@code %n} wrote CRLF into the table rows only, so a clean re-run showed as a
+     * diff even when every number matched.
+     */
     static String report(List<Query> qs, List<Row> rows, Map<String, Map<String, Double>> summary,
                          Map<String, Map<String, Double>> byKind, int k) {
         StringBuilder sb = new StringBuilder();
@@ -178,7 +184,7 @@ public final class EvalHarness {
         order.sort(Comparator.comparing(x -> -summary.get(x).get("ndcg@k")));
         for (String mode : order) {
             Map<String, Double> s = summary.get(mode);
-            sb.append(String.format("| %s | %.3f | %.3f | %.3f | %.3f | %d/%d |%n", mode,
+            sb.append(String.format("| %s | %.3f | %.3f | %.3f | %.3f | %d/%d |\n", mode,
                     s.get("recall@k"), s.get("precision@k"), s.get("ndcg@k"), s.get("mrr"),
                     Math.round(s.get("top@k_hit") * s.get("n")), s.get("n").intValue()));
         }
@@ -188,7 +194,7 @@ public final class EvalHarness {
                     .append("document -- that is the case BM25 cannot reach and the vector layer exists for.\n\n");
             sb.append("| mode:kind | recall@").append(k).append(" | nDCG@").append(k).append(" |\n|---|---|---|\n");
             for (Map.Entry<String, Map<String, Double>> e : byKind.entrySet()) {
-                sb.append(String.format("| %s | %.3f | %.3f |%n", e.getKey(),
+                sb.append(String.format("| %s | %.3f | %.3f |\n", e.getKey(),
                         e.getValue().get("recall@k"), e.getValue().get("ndcg@k")));
             }
         }
