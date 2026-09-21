@@ -83,11 +83,6 @@ benchmark corpus because recombined sentences destroy co-occurrence sparsity.
 Java 17. `java -jar mini-search.jar` -> http://localhost:9200, demo corpus inside the jar. There is
 also an MCP server (`mcp` subcommand) so an agent can use it as a local Google. If you don't want to
 build: the jar is attached to the v0.1.0 release (213KB, one file).
-
-On how this was written: I designed it, wrote the plan doc, and made every judgement call, with an AI
-pair-programming the implementation. The four numbers above are mine because I ran them -- `eval` and
-`bench` reproduce all of them in two commands, and `docs/PLAN.md` records where the measurements
-contradicted my original design.
 ```
 
 ---
@@ -195,21 +190,6 @@ java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar �
 ```
 
 ---
-
-## 关于"是不是 AI 写的"——一段可直接贴的自述
-
-放在文章末尾或 HN 首评最后一段。用之前请确认它与你实际的做法一致，不一致就删掉，不要贴一个你不认的声明。
-
-```
-关于工具：这个项目是我自己开的题（设计文档在这里：docs/PLAN.md，v1.0 是我写的，v1.1/v1.2 是
-实现过程中被实测数据逼出来的改动，改了什么、为什么改都列在开头那张表里）。实现过程我和 AI 结对，
-它写了相当多代码，但每一处判断我都要求它拿评测数字说话——上面那些 0.934 / 0.026 / 0.927 都是我
-自己跑 mini-search eval 得到的，不是它编的。你要是怀疑哪个数字，仓库里两条命令就能复现。
-
-我认为"谁敲的字"在这个项目里不是重点，重点是：中文分词的 NPMI 阈值为什么会随语料规模漂移、
-IDF 把字段数当文档数会怎样悄悄毁掉排序、84 篇文档训不出词向量该怎么办——这三件事是我自己的判断，
-也是我做这个项目想搞明白的东西。
-```
 
 ## 发布前自检（我已经做完的部分标了 ✅）
 
