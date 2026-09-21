@@ -69,7 +69,7 @@ public final class McpServer {
                 case "initialize" -> result(id, Map.of(
                         "protocolVersion", PROTOCOL,
                         "capabilities", Map.of("tools", Map.of("listChanged", false)),
-                        "serverInfo", Map.of("name", "mini-search", "version", "0.1.0",
+                        "serverInfo", Map.of("name", "mini-search", "version", "0.1.1",
                                 "title", "Local-first hybrid search engine for Chinese")));
                 case "notifications/initialized", "notifications/cancelled" -> null;
                 case "ping" -> result(id, Map.of());

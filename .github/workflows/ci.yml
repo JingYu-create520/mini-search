@@ -33,6 +33,15 @@ jobs:
           java -jar "$GITHUB_WORKSPACE/target/mini-search.jar" search "倒排索引" --topK 3
           java -jar "$GITHUB_WORKSPACE/target/mini-search.jar" analyze "中文分词与倒排索引"
           java -jar "$GITHUB_WORKSPACE/target/mini-search.jar" stats
+      - name: The advertised jar size is the real jar size
+        run: |
+          actual=$(( ($(stat -c%s target/mini-search.jar) + 512) / 1024 ))
+          claimed=$(grep -oE '[0-9]+ ?KB' README.md | head -1 | grep -oE '[0-9]+')
+          if [ "$actual" != "$claimed" ]; then
+            echo "::error::README advertises ${claimed}KB but the packaged jar is ${actual}KB - update every size claim (README, README.zh-CN, docs/LAUNCH, About)"
+            exit 1
+          fi
+          echo "jar is ${actual}KB, as advertised"
       - uses: actions/upload-artifact@v4
         with:
           name: mini-search-jar
