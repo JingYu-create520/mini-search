@@ -54,7 +54,7 @@ public final class MiniSearch {
             case "index" -> index(opt);
             case "delete" -> delete(opt);
             case "crawl" -> crawl(opt);
-            case "eval" -> EvalHarness.run(open(opt), opt);
+            case "eval" -> EvalHarness.run(open(opt, true), opt);
             case "bench" -> Bench.run(opt);
             case "analyze" -> analyze(opt);
             case "regold" -> regold(opt);
@@ -253,6 +253,17 @@ public final class MiniSearch {
 
     /** Open the engine: reuse a snapshot when it matches the corpus, otherwise build and save. */
     private static Engine open(Map<String, String> opt) {
+        return open(opt, false);
+    }
+
+    /**
+     * @param ignoreSnapshot measure from the corpus instead of from whatever is lying in
+     *     {@code data/}. {@code eval} uses this: a snapshot left behind by an earlier run --
+     *     one indexed with the optional bge model, say -- silently flattened all three modes
+     *     down to bm25's numbers, which is the opposite of "every claim has a number you can
+     *     reproduce". The snapshot is neither read nor written on this path.
+     */
+    private static Engine open(Map<String, String> opt, boolean ignoreSnapshot) {
         Log.setQuiet(Boolean.parseBoolean(opt.getOrDefault("quiet", "false")) || opt.containsKey("quiet"));
         Path data = Path.of(opt.getOrDefault("data", "data"));
         Engine.Options o = new Engine.Options();
@@ -278,15 +289,20 @@ public final class MiniSearch {
             Log.warn("cannot read --corpus: %s", e.getMessage());
         }
         Path snap = data.resolve("index.msnap");
-        boolean rebuild = opt.containsKey("rebuild") || !Files.exists(snap) || docs == null;
+        boolean rebuild = ignoreSnapshot || opt.containsKey("rebuild") || !Files.exists(snap) || docs == null;
+        if (ignoreSnapshot && Files.exists(snap)) {
+            Log.info("eval measures a freshly built index; the existing %s was ignored", snap);
+        }
         Engine e;
         if (rebuild) {
             e = Engine.build(docs == null ? List.of() : docs, o);
-            try {
-                Files.createDirectories(data);
-                e.save(snap);
-            } catch (IOException ex) {
-                Log.warn("snapshot not saved: %s", ex.getMessage());
+            if (!ignoreSnapshot) {
+                try {
+                    Files.createDirectories(data);
+                    e.save(snap);
+                } catch (IOException ex) {
+                    Log.warn("snapshot not saved: %s", ex.getMessage());
+                }
             }
         } else {
             e = Engine.restore(snap, o, docs);
