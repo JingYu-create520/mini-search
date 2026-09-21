@@ -96,6 +96,9 @@ public final class MiniSearch {
                   --data DIR     index/snapshot directory            (default: data)
                   --corpus DIR   index this JSONL directory instead of the bundled corpus
                   --port N       HTTP port for serve                 (default: 9200)
+                  --host ADDR    interface for serve                 (default: 127.0.0.1)
+                                 use 0.0.0.0 only when you want other machines to reach it:
+                                 /api/index and /api/crawl are unauthenticated
                   --mode M       bm25 | vector | hybrid              (default: hybrid)
                   --topK N       results to return                   (default: 10)
                   --no-vectors   skip training, BM25 only (fastest start)
@@ -119,13 +122,19 @@ public final class MiniSearch {
     private static void serve(Map<String, String> opt) throws IOException, InterruptedException {
         Engine engine = open(opt);
         int port = Integer.parseInt(opt.getOrDefault("port", "9200"));
-        HttpApi api = new HttpApi(engine, port).withCrawler(Crawler.standard());
+        String host = opt.getOrDefault("host", "127.0.0.1");
+        HttpApi api = new HttpApi(engine, host, port).withCrawler(Crawler.standard());
         api.start();
         Map<String, Object> s = engine.stats();
-        System.out.printf("%n  mini-search is up  ->  http://localhost:%d/%n", port);
+        System.out.printf("%n  mini-search is up  ->  http://localhost:%d/%n", api.boundPort());
         System.out.printf("  %s documents, %s terms, %s mined words, encoder=%s, knn=%s%n",
                 s.get("documents"), s.get("terms"), s.get("minedWords"), s.get("encoder"), s.get("knn"));
-        System.out.printf("  endpoints: %s%n%n", String.join("  ", HttpApi.endpoints()));
+        System.out.printf("  endpoints: %s%n", String.join("  ", HttpApi.endpoints()));
+        if (!"127.0.0.1".equals(host) && !"localhost".equals(host) && !"::1".equals(host)) {
+            System.out.printf("  ! bound to %s: reachable from other machines on this network, and the write"
+                    + " endpoints (/api/index, /api/crawl) have no authentication%n", host);
+        }
+        System.out.println();
         Runtime.getRuntime().addShutdownHook(new Thread(api::stop));
         Thread.currentThread().join();
     }

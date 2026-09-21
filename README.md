@@ -155,6 +155,11 @@ Tools: `search`, `index_url`, `index_text`, `stats`. Companion skill: [`skills/m
 docker compose up --build      # http://localhost:9200
 ```
 
+The server binds `127.0.0.1` by default — `serve --host 0.0.0.0` opts into the network, which the container
+image does on purpose (inside a container the loopback interface is unreachable from the host, so a published
+port would connect to nothing). Reach for it only when you mean it: `/api/index` and `/api/crawl` are
+unauthenticated writes.
+
 > Verified on this machine: `docker build` produces a 425 MB image, `docker compose up -d` starts it, and `:9200` serves both the stats and the search API with CJK intact. The first build is slow because Maven downloads its dependencies inside the container; the second one hits the cache.
 
 ## What each layer actually does

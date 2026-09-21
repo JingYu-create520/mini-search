@@ -74,8 +74,36 @@ class HttpApiTest {
     }
 
     @Test
-    void unknownEndpointsAndMissingParametersAreRejectedNotThrown() throws Exception {
+    void theDefaultBindIsLoopbackNotEveryInterface() throws Exception {
         Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        HttpApi api = new HttpApi(engine, 0);
+        api.start();
+        try {
+            // `new InetSocketAddress(port)` was the whole binding: wildcard, with unauthenticated
+            // write endpoints behind it. A local-first tool should have to opt into the network.
+            assertTrue(api.boundAddress().getAddress().isLoopbackAddress(),
+                    "default bind must be loopback, was " + api.boundAddress());
+        } finally {
+            api.stop();
+        }
+    }
+
+    @Test
+    void anExplicitHostStillBindsTheWildcardTheContainerNeeds() throws Exception {
+        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        HttpApi api = new HttpApi(engine, "0.0.0.0", 0);
+        api.start();
+        try {
+            assertTrue(api.boundAddress().getAddress().isAnyLocalAddress(),
+                    "0.0.0.0 must still be honoured: " + api.boundAddress());
+            assertTrue(api.boundPort() > 0);
+        } finally {
+            api.stop();
+        }
+    }
+
+    @Test
+    void unknownEndpointsAndMissingParametersAreRejectedNotThrown() throws Exception {        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
         HttpApi api = new HttpApi(engine, 0);
         api.start();
         try {

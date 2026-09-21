@@ -31,17 +31,37 @@ import java.util.concurrent.Executors;
 public final class HttpApi {
 
     private final Engine engine;
+    private final String host;
     private final int port;
     private HttpServer server;
 
+    /** Loopback-only by default: see {@link #HttpApi(Engine, String, int)}. */
     public HttpApi(Engine engine, int port) {
+        this(engine, "127.0.0.1", port);
+    }
+
+    /**
+     * @param host interface to bind. The defaults used to be {@code new InetSocketAddress(port)},
+     *     which is the wildcard address -- so a tool described as local-first was in fact
+     *     listening on every interface, with unauthenticated write endpoints
+     *     ({@code POST /api/index}, {@code DELETE /api/index}, {@code POST /api/crawl}) behind it.
+     *     Anyone on the same LAN could rewrite the index or point the crawler at a URL of their
+     *     choosing. Pass {@code 0.0.0.0} explicitly when you mean it -- the Docker image does.
+     */
+    public HttpApi(Engine engine, String host, int port) {
         this.engine = engine;
+        this.host = host;
         this.port = port;
+    }
+
+    /** Address the server actually bound to; port 0 was accepted for tests. */
+    public InetSocketAddress boundAddress() {
+        return server == null ? new InetSocketAddress(host, port) : server.getAddress();
     }
 
     /** Port the server actually bound to; 0 was accepted for tests. */
     public int boundPort() {
-        return server == null ? port : server.getAddress().getPort();
+        return boundAddress().getPort();
     }
 
     private dev.jingyu.ms.crawl.Crawler crawler;
@@ -53,7 +73,7 @@ public final class HttpApi {
     }
 
     public void start() throws IOException {
-        server = HttpServer.create(new InetSocketAddress(port), 64);
+        server = HttpServer.create(new InetSocketAddress(host, port), 64);
         server.setExecutor(Executors.newFixedThreadPool(
                 Math.max(2, Runtime.getRuntime().availableProcessors()), r -> {
                     Thread t = new Thread(r, "ms-http");
