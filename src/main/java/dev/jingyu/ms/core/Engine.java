@@ -90,6 +90,12 @@ public final class Engine {
     private final InvertedIndex index;
     private final Bm25 bm25;
     private final List<String> minedWords = new ArrayList<>();
+    /**
+     * Words contributed by {@code --dict}. Kept separately from {@link #minedWords} because they have
+     * a different origin and a different shelf life, but they have to survive the same round trip:
+     * they decided how the stored postings were cut, so losing them loses every query that needs them.
+     */
+    private final List<String> customWords = new ArrayList<>();
 
     private EmbeddingModel model;
     private dev.jingyu.ms.vector.Encoder encoder;   // model, or a pretrained one when --model is given
@@ -176,9 +182,9 @@ public final class Engine {
         this.lexicon = Lexicon.core();
         if (options.dictPath != null) {
             try {
-                int before = lexicon.size();
-                lexicon.loadFile(java.nio.file.Path.of(options.dictPath));
-                Log.info("custom dictionary %s: +%d words", options.dictPath, lexicon.size() - before);
+                customWords.addAll(lexicon.loadFile(java.nio.file.Path.of(options.dictPath)));
+                Log.info("custom dictionary %s: %d words (they travel with the snapshot)",
+                        options.dictPath, customWords.size());
             } catch (java.io.IOException e) {
                 Log.warn("cannot read --dict %s: %s", options.dictPath, e.getMessage());
             }
@@ -491,7 +497,7 @@ public final class Engine {
         for (int i = 0; i < kept.size(); i++) { ids[i] = kept.get(i); vecs[i] = docVectorsById.get(ids[i]); }
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         if (model != null) model.save(bos);
-        Snapshot s = Snapshot.of(index, minedWords, vecs, ids, fingerprint);
+        Snapshot s = Snapshot.of(index, minedWords, customWords, vecs, ids, fingerprint);
         s.putModel(bos.toByteArray());
         s.writeTo(file);
     }
@@ -509,6 +515,16 @@ public final class Engine {
             for (String w : Snapshot.readDict(s.raw("dict"))) {
                 e.minedWords.add(w);
                 e.lexicon.add(w);
+            }
+            // The words --dict contributed when this file was written. Restoring them is the difference
+            // between "search finds it" and a quiet empty result list for a term that is in the index.
+            for (String w : Snapshot.readDict(s.raw("udict"))) {
+                if (!e.customWords.contains(w)) e.customWords.add(w);
+                e.lexicon.add(w);
+            }
+            if (options.dictPath == null && !e.customWords.isEmpty()) {
+                Log.info("snapshot carries %d custom dictionary words from the --dict it was built with",
+                        e.customWords.size());
             }
             e.lexicon.seal();
 

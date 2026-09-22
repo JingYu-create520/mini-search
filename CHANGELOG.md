@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.3 — 2026-09-22
+
+### Fixed — a custom dictionary that vanished on restart
+`--dict` words were loaded into the analyser, used to cut every document, and then written nowhere.
+A restart without the flag restored the postings but re-split the query into single characters, so
+`search 貔貅` returned an empty list for a term that was sitting in the index -- no error, no warning,
+just the impression that the corpus is empty. The words now go into their own snapshot section
+(`udict`, absent-and-harmless for files written before this), are re-added before the lexicon seals,
+and the restore says so when it is the reason a query still works.
+
+Reproduced from the CLI before fixing and re-run after: index one document whose rare word appears a
+single time (below the mining threshold, mining off), restart without `--dict`, search it -- empty
+before, one hit after. `IndexTest.customDictionarySurvivesTheSnapshot` covers it, and was checked to
+fail when the restore side is pointed at a section name that does not exist.
+
 ## 0.1.2 — 2026-09-22
 
 ### Added — the README can no longer lie about its own repo

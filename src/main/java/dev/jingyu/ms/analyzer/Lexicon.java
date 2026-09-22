@@ -195,21 +195,33 @@ public final class Lexicon {
         return lex;
     }
 
-    public Lexicon loadFile(Path p) throws IOException {
-        ingest(this, Files.readString(p, StandardCharsets.UTF_8));
-        return this;
+    /**
+     * Load one custom-dictionary file and return the words it contributed, normalized the way the
+     * analyser will see them.
+     *
+     * <p>The caller persists that list into the snapshot on purpose. A document indexed with
+     * {@code --dict} was tokenized on the strength of that file, so an engine restored without it
+     * splits the same query differently from the stored postings and answers "nothing found" for a
+     * word that is plainly in the index -- a silent, total failure of recall rather than a loud one.
+     */
+    public List<String> loadFile(Path p) throws IOException {
+        return ingest(this, Files.readString(p, StandardCharsets.UTF_8));
     }
 
-    private static void ingest(Lexicon lex, String text) {
+    private static List<String> ingest(Lexicon lex, String text) {
+        List<String> added = new ArrayList<>();
         for (String line : text.split("\\R")) {
             String l = line.trim();
             if (l.isEmpty() || l.startsWith("#")) continue;
             for (String w : l.split("[\\s,，、]+")) {
                 if (w.isEmpty() || w.startsWith("#")) continue;
                 String word = normalize(w);
-                if (!word.isEmpty()) lex.add(word);
+                if (word.isEmpty()) continue;
+                lex.add(word);
+                if (!added.contains(word)) added.add(word);
             }
         }
+        return added;
     }
 
     private static String normalize(String w) {

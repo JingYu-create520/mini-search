@@ -213,6 +213,36 @@ class IndexTest {
     }
 
     @Test
+    @DisplayName("自定义词典跟着快照走：不带 --dict 重启也还能搜到那个词")
+    void customDictionarySurvivesTheSnapshot() throws IOException {
+        Path dict = Files.createTempFile("ms-dict", ".txt");
+        Path snap = Files.createTempFile("ms-dict-snap", ".msnap");
+        try {
+            Files.writeString(dict, "貔貅\n");
+            // One occurrence, under the mining threshold, with mining off as well: nothing but the
+            // dictionary can make 貔貅 a single term.
+            List<Corpus.RawDoc> docs = List.of(new Corpus.RawDoc("d1", "", "摆件笔记",
+                    "桌上放了一只貔貅，只提这一次。", "杂记"));
+
+            Engine.Options with = new Engine.Options().vectors(false).mining(false);
+            with.dictPath = dict.toString();
+            Engine built = Engine.build(docs, with);
+            built.save(snap);
+
+            Engine.Options bare = new Engine.Options().vectors(false).mining(false);
+            Engine restored = Engine.restore(snap, bare, docs);
+            assertFalse(restored.searcher().rankedIds("貔貅", Searcher.Mode.BM25, 5).isEmpty(),
+                    "the postings hold 貔貅 as one term; a restore that forgets the dictionary splits the"
+                            + " query into two characters and finds nothing -- silently");
+            assertTrue(restored.analyzer().terms("一只貔貅").contains("貔貅"),
+                    "the query side must cut the way the stored index was cut");
+        } finally {
+            Files.deleteIfExists(dict);
+            Files.deleteIfExists(snap);
+        }
+    }
+
+    @Test
     void corruptedSnapshotIsDetectedNotTrusted() throws IOException {
         Engine e = Engine.build(Corpus.loadDemo(), new Engine.Options().vectors(false));
         Path file = Files.createTempFile("ms-corrupt", ".msnap");

@@ -104,7 +104,7 @@ industrial benchmark.
 
 | layer | lines | what lives there |
 |---|---|---|
-| `analyzer/` | 683 | normalisation, bidirectional maximum matching, mixed CN/EN cutting, statistical new-word mining (NPMI cohesion + branch entropy) |
+| `analyzer/` | 695 | normalisation, bidirectional maximum matching, mixed CN/EN cutting, statistical new-word mining (NPMI cohesion + branch entropy) |
 | `index/` | 479 | inverted index, varbyte postings, positions, delete bitmap, phrase merge |
 | `ranking/` | 82 | BM25 with tunable k1/b and per-field boosts |
 | `hybrid/` | 76 | RRF and weighted score fusion |
@@ -113,12 +113,12 @@ industrial benchmark.
 | `search/` | 447 | query orchestration, four modes, highlighting |
 | `crawl/` | 863 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction, a target policy that refuses private addresses |
 | `api/` | 404 | routes and static assets on the JDK HTTP server |
-| `core/` | 973 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
+| `core/` | 992 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
 | `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 200 | MCP server over stdio JSON-RPC |
 | `util/` + CLI | 725 | JSON, varbyte, logging, commands |
-| **main** | **6,521** | 39 files |
-| tests | 1532 | 67 cases |
+| **main** | **6,552** | 39 files |
+| tests | 1562 | 68 cases |
 | UI | 255 | single-file search page + index admin page |
 
 ## Architecture
@@ -148,7 +148,7 @@ java -jar mini-search.jar bench --docs 50000
 java -jar mini-search.jar mcp                         # MCP server on stdio
 ```
 
-Index state persists to a CRC-checked snapshot (`data/index.msnap`). A corrupt or stale snapshot is detected and rebuilt rather than half-trusted.
+Index state persists to a CRC-checked snapshot (`data/index.msnap`). A corrupt or stale snapshot is detected and rebuilt rather than half-trusted. The words from `--dict` travel with it as well: they decided how your documents were cut, so a restore that forgot them would split a query differently from the postings and hand back an empty list for a word that is plainly in the index.
 
 ### HTTP API
 
@@ -276,7 +276,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 67 cases
+mvn -B test                         # 68 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

@@ -51,13 +51,15 @@ public final class Snapshot {
 
     // ------------------------------------------------------------------ write
 
-    public static Snapshot of(InvertedIndex index, List<String> minedDict, float[][] docVectors,
-                             int[] vectorDocIds, long fingerprint) throws IOException {
+    public static Snapshot of(InvertedIndex index, List<String> minedDict, List<String> customDict,
+                              float[][] docVectors, int[] vectorDocIds, long fingerprint) throws IOException {
         Snapshot s = new Snapshot(fingerprint);
         s.put("docs", writeDocs(index));
         s.put("postings", writePostings(index));
         s.put("lens", writeLens(index));
         s.put("dict", writeDict(minedDict));
+        // Its own section, so a snapshot written before this existed still loads: absent means empty.
+        s.put("udict", writeDict(customDict));
         s.put("vectors", writeVectors(docVectors, vectorDocIds, index.maxDocId()));
         return s;
     }
@@ -246,7 +248,8 @@ public final class Snapshot {
         return out;
     }
 
-    private static byte[] writeDict(List<String> words) throws IOException {        ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    private static byte[] writeDict(List<String> words) throws IOException {
+        ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bos);
         out.writeInt(words.size());
         for (String w : words) out.writeUTF(w);

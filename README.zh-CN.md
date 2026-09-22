@@ -102,7 +102,7 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 
 | 层 | 行数 | 职责 |
 |---|---|---|
-| `analyzer/` | 683 | 归一化、双向最大匹配、中英混排切分、统计新词挖掘（凝固度 NPMI + 左右邻接熵） |
+| `analyzer/` | 695 | 归一化、双向最大匹配、中英混排切分、统计新词挖掘（凝固度 NPMI + 左右邻接熵） |
 | `index/` | 479 | 倒排索引、变长编码 posting、位置信息、删除位图、短语合并 |
 | `ranking/` | 82 | BM25（k1/b 可调，多字段加权） |
 | `hybrid/` | 76 | RRF 与加权分数融合 |
@@ -111,12 +111,12 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `search/` | 447 | 查询编排、四种模式、高亮与摘要 |
 | `crawl/` | 863 | 礼貌爬虫、robots、64 位指纹去重、编码探测、链接密度正文抽取、内网目标默认拒绝 |
 | `api/` | 404 | JDK HttpServer 路由与静态资源 |
-| `core/` | 973 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
+| `core/` | 992 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
 | `eval/` | 358 | recall/precision/nDCG/MRR 与规模基准 |
 | `mcp/` | 200 | stdio JSON-RPC 的 MCP server |
 | `util/` + 入口 | 725 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6,521** | 39 个文件 |
-| 测试 | 1532 | 67 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| **主代码合计** | **6,552** | 39 个文件 |
+| 测试 | 1562 | 68 个用例（4 个需要本地模型，缺模型时自动跳过） |
 | 前端 | 255 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
@@ -152,6 +152,8 @@ java -jar mini-search.jar analyze "我的领域词" --dict company.dict
 ```
 
 `data/corpus/*.jsonl` 的格式就是最小格式：`id / title / body / url / tags`。索引会落盘成带 CRC 的快照（`data/index.msnap`），下次启动直接恢复，损坏的快照会被识别并重建，而不是半信半疑地服务。
+
+`--dict` 里的词也一起进快照。原因不是方便，是正确性：这些词决定了当初怎么切你的文档，恢复时如果忘了它们，同一个查询会被切成和倒排表不一样的词，结果是**一个明明白白躺在索引里的词搜出来是空的**——不报错，只是没有结果。
 
 ### HTTP API
 
@@ -292,7 +294,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 67 个用例
+mvn -B test                                  # 68 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000
