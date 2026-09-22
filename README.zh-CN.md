@@ -116,7 +116,7 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `mcp/` | 194 | stdio JSON-RPC 的 MCP server |
 | `util/` + 入口 | 699 | JSON、变长编码、日志、CLI |
 | **主代码合计** | **6417** | 39 个文件 |
-| 测试 | 1404 | 62 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| 测试 | 1431 | 63 个用例（4 个需要本地模型，缺模型时自动跳过） |
 | 前端 | 252 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
@@ -283,7 +283,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 62 个用例
+mvn -B test                                  # 63 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000

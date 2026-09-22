@@ -80,6 +80,9 @@ if [ -f "$ARTICLE" ]; then
     fi
   done
   check "launch cases" "$(grep -oE '[0-9]+ 个测试' docs/LAUNCH.md | grep -oE '[0-9]+' | head -1)" "$CASES"
+  if [ -f CONTRIBUTING.md ]; then
+    check "contributing cases" "$(grep -oE 'mvn -B test[^#]*#[^0-9]*[0-9]+' CONTRIBUTING.md | head -1 | grep -oE '[0-9]+$')" "$CASES"
+  fi
 fi
 
 # ---------------------------------------------------------------------------

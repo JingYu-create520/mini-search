@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.jingyu.ms.api.HttpApi;
 import dev.jingyu.ms.core.Engine;
+import dev.jingyu.ms.util.Json;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.net.HttpURLConnection;
@@ -103,7 +104,8 @@ class HttpApiTest {
     }
 
     @Test
-    void unknownEndpointsAndMissingParametersAreRejectedNotThrown() throws Exception {        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+    void unknownEndpointsAndMissingParametersAreRejectedNotThrown() throws Exception {
+        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
         HttpApi api = new HttpApi(engine, 0);
         api.start();
         try {
@@ -111,6 +113,31 @@ class HttpApiTest {
             assertTrue(request(port, "GET", "/api/nope", null).contains("unknown endpoint"));
             assertTrue(request(port, "GET", "/api/search?q=", null).contains("q is required"));
             assertTrue(request(port, "POST", "/api/index", "{\"id\":\"\"}").contains("id is required"));
+        } finally {
+            api.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("/api/doc 两种寻址都能取回原文，取不到就是 404")
+    void docLookupsReadThroughTheGuard() throws Exception {
+        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        HttpApi api = new HttpApi(engine, 0);
+        api.start();
+        try {
+            int port = api.boundPort();
+            request(port, "POST", "/api/index",
+                    "{\"id\":\"doc-1\",\"title\":\"海带为什么冬天不冻\",\"body\":\"比热容让沿海城市冬天温和\"}");
+
+            String byId = request(port, "GET", "/api/doc?id=doc-1", null);
+            assertTrue(byId.contains("海带为什么冬天不冻"), "by external id: " + byId);
+            assertTrue(byId.contains("比热容"), "the body comes back intact: " + byId);
+
+            int internal = (int) Math.round((Double) Json.obj(Json.parse(byId)).get("docId"));
+            String byDocId = request(port, "GET", "/api/doc?docId=" + internal, null);
+            assertTrue(byDocId.contains("doc-1"), "by internal id " + internal + ": " + byDocId);
+
+            assertTrue(request(port, "GET", "/api/doc?id=never-indexed", null).contains("no such document"));
         } finally {
             api.stop();
         }

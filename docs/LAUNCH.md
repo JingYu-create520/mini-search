@@ -198,7 +198,7 @@ java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar �
 
 ## 发布前自检（我已经做完的部分标了 ✅）
 
-- ✅ 62 个测试全绿；`mvn -B package` 出 222KB jar；无关目录下 `java -jar` 冷启动可搜
+- ✅ 63 个测试全绿；`mvn -B package` 出 222KB jar；无关目录下 `java -jar` 冷启动可搜
 - ✅ README 双语、GIF 是真界面（`?tour=1` 自走）、评测与基准数字已提交进仓库
 - ✅ LICENSE(MIT)、CI 工作流（测试 + 评测门槛 + jar 冒烟）、Dockerfile/compose
 - ✅ Docker 已在本机验证：`docker build` 出 425MB 镜像，`docker compose up -d` 后 `:9200` 的统计与搜索接口均正常，中文不乱码

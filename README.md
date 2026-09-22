@@ -118,7 +118,7 @@ industrial benchmark.
 | `mcp/` | 194 | MCP server over stdio JSON-RPC |
 | `util/` + CLI | 699 | JSON, varbyte, logging, commands |
 | **main** | **6,417** | 39 files |
-| tests | 1404 | 62 cases |
+| tests | 1431 | 63 cases |
 | UI | 252 | single-file search page + index admin page |
 
 ## Architecture
@@ -266,7 +266,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 62 cases
+mvn -B test                         # 63 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

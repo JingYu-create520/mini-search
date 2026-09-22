@@ -27,7 +27,7 @@ java -cp target/classes dev.jingyu.ms.MiniSearch eval
 Maven is only needed for the test suite (JUnit 5) and the shaded jar:
 
 ```bash
-mvn -B test                           # 62 cases, no network
+mvn -B test                           # 63 cases, no network
 mvn -B -DskipTests package            # target/mini-search.jar
 bash scripts/check-claims.sh          # every advertised count vs. the tree
 scripts/regold.sh                     # only after an intentional analyser change
@@ -59,8 +59,8 @@ production default refuses loopback on purpose. If your test needs the internet,
 - A failure is a value with a reason (`CrawlResult{ok:false, reason:"…"}`), not a thrown exception, in
   anything that walks a corpus -- one bad page must not end a crawl.
 - Readability beats micro-optimisation. The biggest package is `vector/` at 1,086 lines across seven
-  files and the biggest single file is 453; if a file grows past roughly 500 lines, split it or
-  explain in the commit message why not.
+  files and the biggest single file is `core/Engine.java` at 577; if a file grows past roughly 600
+  lines, split it or explain in the commit message why not.
 - New behaviour gets a test that would fail without it. Where a check cannot be made to fail (a race
   that does not reproduce on x86, for instance), the test says so rather than implying it proves more
   than it does.
