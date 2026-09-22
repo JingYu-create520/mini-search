@@ -90,8 +90,13 @@ public final class Highlighter {
         return sb.toString();
     }
 
+    /**
+     * The no-token path. It still has to escape, because "no analysable terms" is a property of the
+     * text, not a promise about it: the UI drops this string straight into innerHTML, like every
+     * other snippet.
+     */
     private static String ellipsize(String text, int max) {
-        String t = text.strip();
+        String t = escape(text.strip());
         return t.length() <= max ? t : t.substring(0, max) + "…";
     }
 }

@@ -22,7 +22,7 @@ The server is started with `java -jar target/mini-search.jar mcp` (stdio JSON-RP
 | tool | arguments | what it does |
 |---|---|---|
 | `search` | `query` (required), `mode` = `hybrid`\|`bm25`\|`semantic`\|`vector`, `topK` 1–50 | Ranked hits with id, url, title, score and an `<em>`-highlighted snippet |
-| `index_url` | `url` | Politely fetches one page (robots + rate limit + charset detection + main-text extraction) and indexes it |
+| `index_url` | `url` | Politely fetches one page (robots + rate limit + charset detection + main-text extraction) and indexes it. Targets that resolve to loopback, cloud-metadata or private ranges are refused unless the server runs with `--allow-private` |
 | `index_text` | `id`, `title`, `body`, optional `url`, `tags` | Indexes text directly; re-using an `id` updates that document |
 | `stats` | – | Document and term counts, dictionary size, which retrieval models are active |
 

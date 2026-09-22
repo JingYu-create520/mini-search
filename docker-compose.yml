@@ -4,10 +4,17 @@ services:
     image: mini-search:local
     container_name: mini-search
     ports:
-      - "9200:9200"
+      # Published on the host's loopback only, which is what `java -jar` does by default too. The
+      # container still binds 0.0.0.0 internally -- the host has to reach it through this mapping --
+      # and that is not the same as handing it to the LAN. MS_HOST=0.0.0.0 docker compose up when you
+      # really want the port on every interface, and put something that authenticates in front of it.
+      - "${MS_HOST:-127.0.0.1}:9200:9200"
     volumes:
       # Everything the engine learns stays here: the index snapshot and any crawled documents.
       - ./data:/app/data
     environment:
-      JAVA_TOOL_OPTIONS: "-Xmx1g"
+      # A deliberate ceiling: a runaway crawl should hit this and die, not eat the machine. 1 GB is
+      # far past the bundled corpus; the 50k-document bench used ~1.9 GB, so raise MS_XMX before
+      # repeating that benchmark inside the container.
+      JAVA_TOOL_OPTIONS: "-Xmx${MS_XMX:-1g}"
     restart: unless-stopped

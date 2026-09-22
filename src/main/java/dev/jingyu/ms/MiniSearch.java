@@ -61,7 +61,10 @@ public final class MiniSearch {
             case "regold" -> regold(opt);
             case "vector" -> vector(opt);
             case "stats" -> System.out.println(Json.write(open(opt).stats()));
-            case "mcp" -> new McpServer(open(opt)).serve(System.in, System.out);
+            // Same target policy as every other network path: an agent driving this over stdio gets a
+            // crawler that refuses internal and metadata addresses unless the process was told not to.
+            case "mcp" -> new McpServer(open(opt)).withCrawler(crawler(opt))
+                    .serve(System.in, System.out);
             case "build" -> {
                 Engine e = open(opt);
                 System.out.println(Json.write(e.stats()));

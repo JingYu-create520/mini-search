@@ -119,6 +119,49 @@ class HttpApiTest {
     }
 
     @Test
+    @DisplayName("越界分页参数不能把服务打成 500")
+    void nonsensePagingIsClampedNotFatal() throws Exception {
+        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        HttpApi api = new HttpApi(engine, 0);
+        api.start();
+        try {
+            int port = api.boundPort();
+            request(port, "POST", "/api/index", "{\"id\":\"p1\",\"title\":\"分页边界\",\"body\":\"从这里开始\"}");
+            String q = URLEncoder.encode("分页", StandardCharsets.UTF_8);
+            for (String paging : new String[] {"from=-5", "topK=-1", "topK=0", "topK=99999", "from=99999",
+                    "topK=abc", "from=abc"}) {
+                String r = request(port, "GET", "/api/search?q=" + q + "&" + paging, null);
+                assertTrue(r.contains("\"hits\""), paging + " should answer normally: " + r);
+                assertTrue(!r.contains("\"error\""), paging + " must not become a server error: " + r);
+            }
+        } finally {
+            api.stop();
+        }
+    }
+
+    @Test
+    @DisplayName("写接口有请求体上限")
+    void oversizedWriteBodiesAreRefused() throws Exception {
+        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        HttpApi api = new HttpApi(engine, 0);
+        api.start();
+        try {
+            int port = api.boundPort();
+            // One byte past 8 MiB is enough to trip it; a kilobyte of slack keeps the test honest if
+            // the wrapper's own bytes are counted differently later.
+            String huge = "{\"id\":\"big\",\"title\":\"t\",\"body\":\"" + "a".repeat((8 << 20) + 1024) + "\"}";
+            String r = request(port, "POST", "/api/index", huge);
+            assertTrue(r.contains("body larger than 8 MiB"), "expected the cap to answer, got: " + r);
+            assertEquals(0, engine.numDocs(), "a refused body stores nothing");
+
+            String ok = request(port, "POST", "/api/index", "{\"id\":\"s1\",\"title\":\"小文档\",\"body\":\"正文\"}");
+            assertTrue(ok.contains("\"indexed\":true"), "the cap must not break normal writes: " + ok);
+        } finally {
+            api.stop();
+        }
+    }
+
+    @Test
     @DisplayName("/api/doc 两种寻址都能取回原文，取不到就是 404")
     void docLookupsReadThroughTheGuard() throws Exception {
         Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));

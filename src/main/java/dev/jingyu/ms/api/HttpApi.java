@@ -103,8 +103,8 @@ public final class HttpApi {
         Map<String, String> q = query(ex);
         String text = q.getOrDefault("q", "").trim();
         Searcher.Mode mode = Searcher.Mode.parse(q.get("mode"), Searcher.Mode.HYBRID);
-        int topK = intOr(q.get("topK"), 10);
-        int from = intOr(q.get("from"), 0);
+        int topK = Math.min(Searcher.POOL, Math.max(1, intOr(q.get("topK"), 10)));
+        int from = Math.max(0, intOr(q.get("from"), 0));
         boolean phrase = boolOr(q.get("phrase"));
         boolean highlight = !boolOr(q.get("noHighlight"));
         if (text.isEmpty()) {
@@ -159,7 +159,9 @@ public final class HttpApi {
             send(ex, ok ? 200 : 404, Json.write(Map.of("deleted", ok, "id", id == null ? "" : id)));
             return;
         }
-        Map<String, Object> o = Json.parseObject(readBody(ex));
+        String raw = readBody(ex);
+        if (raw == null) { send(ex, 413, tooLarge()); return; }
+        Map<String, Object> o = Json.parseObject(raw);
         String id = Json.str(o, "id", "");
         if (id.isEmpty()) { send(ex, 400, Json.write(Map.of("error", "id is required"))); return; }
         var doc = engine.add(id, Json.str(o, "url", ""), Json.str(o, "title", ""),
@@ -180,7 +182,9 @@ public final class HttpApi {
             send(ex, 503, Json.write(Map.of("error", "crawler not enabled on this server")));
             return;
         }
-        Map<String, Object> o = Json.parseObject(readBody(ex));
+        String raw = readBody(ex);
+        if (raw == null) { send(ex, 413, tooLarge()); return; }
+        Map<String, Object> o = Json.parseObject(raw);
         String url = Json.str(o, "url", "");
         if (url.isEmpty()) { send(ex, 400, Json.write(Map.of("error", "url is required"))); return; }
         var result = crawler.fetchAndIndex(engine, url);
@@ -232,10 +236,26 @@ public final class HttpApi {
         ex.close();
     }
 
+    /**
+     * An unauthenticated {@code POST} that stores whatever it is handed must not also be an
+     * unbounded memory grant: {@code readAllBytes()} on a chunked body grows the heap until the
+     * process dies. Eight megabytes is orders of magnitude past any document worth indexing.
+     */
+    private static final int MAX_BODY_BYTES = 8 << 20;
+
+    /**
+     * The request body, or null when it is larger than {@link #MAX_BODY_BYTES} -- callers answer 413.
+     *
+     * <p>It reads the cap-plus-one and then decides, rather than refusing on {@code Content-Length}
+     * alone. Refusing early answers over a connection whose body is still being written, which breaks
+     * honest clients (and made the limit untestable from this side); draining up to the cap costs a
+     * socket read and leaves a client that sent a sane-but-too-big document with a real answer. A
+     * client that sent two gigabytes gets a reset after the first eight megabytes, which is the
+     * intended outcome: the process never allocates for it.
+     */
     private static String readBody(HttpExchange ex) throws IOException {
-        try (InputStream in = ex.getRequestBody()) {
-            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
-        }
+        byte[] all = ex.getRequestBody().readNBytes(MAX_BODY_BYTES + 1);
+        return all.length > MAX_BODY_BYTES ? null : new String(all, StandardCharsets.UTF_8);
     }
 
     private static Map<String, String> query(HttpExchange ex) {
@@ -254,6 +274,13 @@ public final class HttpApi {
 
     private static int intOr(String v, int dflt) {
         try { return v == null ? dflt : Integer.parseInt(v.trim()); } catch (NumberFormatException e) { return dflt; }
+    }
+
+    /** The body cap, phrased once so both {@code POST} handlers answer the same way. */
+    private static String tooLarge() {
+        return Json.write(Map.of("error", "body larger than " + (MAX_BODY_BYTES >> 20)
+                + " MiB; this engine stores what you POST to it, so the unauthenticated write"
+                + " endpoints are capped -- see SECURITY.md"));
     }
 
     private static boolean boolOr(String v) {

@@ -152,7 +152,10 @@ function render(d) {
 
 function card(h) {
   const why = Object.entries(h.explain || {}).map(([k,v]) => "<b>" + esc(k) + "</b> " + v).join(" · ");
-  return '<article class="hit"><h3>' + (h.url ? '<a href="'+esc(h.url)+'" target="_blank" rel="noopener">'
+  // The url came out of whatever was indexed, and an unauthenticated POST /api/index can put
+  // anything in that field. Only http(s) becomes a link; javascript: and data: stay plain text.
+  const link = /^https?:\/\//i.test(h.url || "");
+  return '<article class="hit"><h3>' + (link ? '<a href="'+esc(h.url)+'" target="_blank" rel="noopener">'
     + h.title + "</a>" : h.title) + '</h3><div>' + (h.tags||[]).map(t => '<span class="tag">'+esc(t)+"</span>").join("")
     + '</div><p>' + (h.snippet || "") + '</p><div class="why">' + esc(h.id) + " · score " + h.score
     + (why ? " · " + why : "") + "</div></article>";

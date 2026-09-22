@@ -84,7 +84,7 @@ public final class McpServer {
         }
     }
 
-    private static List<Object> toolList() {
+    private List<Object> toolList() {
         List<Object> tools = new ArrayList<>();
         tools.add(tool("search",
                 "Search the local index. Returns ranked documents with title, id, url, score and a "
@@ -92,15 +92,21 @@ public final class McpServer {
                 Map.of("type", "object",
                         "properties", Map.of(
                                 "query", Map.of("type", "string", "description", "Chinese or mixed text"),
-                                "mode", Map.of("type", "string", "enum", List.of("bm25", "vector", "hybrid")),
+                                "mode", Map.of("type", "string",
+                                        "enum", List.of("bm25", "semantic", "vector", "hybrid")),
                                 "topK", Map.of("type", "integer", "minimum", 1, "maximum", 50)),
                         "required", List.of("query"))));
-        tools.add(tool("index_url",
-                "Fetch one web page politely (robots.txt, rate limit), extract its main text and add "
-                        + "it to the index. Returns what was stored.",
-                Map.of("type", "object",
-                        "properties", Map.of("url", Map.of("type", "string")),
-                        "required", List.of("url"))));
+        // Only advertise what this process can actually do: with no crawler wired in, index_url
+        // would be a tool every client tries once and every client is told is unavailable.
+        if (crawler != null) {
+            tools.add(tool("index_url",
+                    "Fetch one web page politely (robots.txt, rate limit), extract its main text and add "
+                            + "it to the index. The target is checked first, so internal and cloud-metadata "
+                            + "addresses are refused unless the server was started with --allow-private.",
+                    Map.of("type", "object",
+                            "properties", Map.of("url", Map.of("type", "string")),
+                            "required", List.of("url"))));
+        }
         tools.add(tool("index_text",
                 "Index a piece of text directly, without crawling.",
                 Map.of("type", "object",

@@ -41,6 +41,24 @@ interval for the second one, which is the exact promise this class exists to kee
 of the body that was already fetched; `InterfaceTest` counts requests on the local server to keep it
 that way.
 
+### Fixed — the HTTP surface, one pass further
+- `POST /api/index` and `POST /api/crawl` read the whole request body with `readAllBytes()`. On a
+  server whose write endpoints have no authentication, that is an unbounded memory grant: a 2 GB body
+  is a 2 GB heap. Now capped at 8 MiB, answered with 413, and the cap is what the test asserts.
+- `from=-1` reached `ranked.get(-1)`, i.e. a client typo became a 500. `topK` and `from` are clamped
+  (`[1, POOL]` and `[0, ∞)`); the response for a nonsense window is an empty page, not a stack trace.
+- `Highlighter.ellipsize` returned raw text while every other path returned escaped text with `<em>`
+  markers -- an inconsistency one call away from being a stored-XSS route through the search page. It
+  escapes now, and the UI only renders `http(s)` URLs as links, since the `url` field is whatever an
+  unauthenticated `POST /api/index` put there (`javascript:` used to be clickable).
+- `docker-compose.yml` published `9200:9200`, i.e. every host interface, while the whole pitch is that
+  this thing stays on your machine. It now maps `127.0.0.1:9200:9200`, with `MS_HOST=0.0.0.0` as the
+  explicit way out and `MS_XMX` exposed for the 1 GB heap ceiling that SECURITY.md now describes
+  accurately (it claimed the heap is unbounded, which the compose file has been contradicting).
+- The stdio MCP server advertised an `index_url` tool it could never serve, because nothing attached a
+  crawler to it. It now runs with one under the same target policy as every other network path, and
+  `tools/list` only offers `index_url` when a crawler is actually present.
+
 ### Fixed — a second pass over the claims
 - Those numbers had drifted: the READMEs advertised 6,005 main lines / 53 cases / a 213-line UI while
   the tree held 6,104 / 57 / 252, and the article still carried the pre-M8 `vector/` size.

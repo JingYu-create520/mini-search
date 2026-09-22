@@ -108,16 +108,16 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `hybrid/` | 76 | RRF 与加权分数融合 |
 | `vector/` | 1086 | 语料自训词向量(SGNS)、暴力 KNN、HNSW、WordPiece 分词器、可选 ONNX/bge 编码器 |
 | `semantic/` | 145 | 分布式同源词典（共现余弦），小语料下的语义层 |
-| `search/` | 442 | 查询编排、四种模式、高亮与摘要 |
+| `search/` | 447 | 查询编排、四种模式、高亮与摘要 |
 | `crawl/` | 863 | 礼貌爬虫、robots、64 位指纹去重、编码探测、链接密度正文抽取、内网目标默认拒绝 |
-| `api/` | 337 | JDK HttpServer 路由与静态资源 |
+| `api/` | 364 | JDK HttpServer 路由与静态资源 |
 | `core/` | 973 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
 | `eval/` | 358 | recall/precision/nDCG/MRR 与规模基准 |
-| `mcp/` | 194 | stdio JSON-RPC 的 MCP server |
-| `util/` + 入口 | 699 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6417** | 39 个文件 |
-| 测试 | 1431 | 63 个用例（4 个需要本地模型，缺模型时自动跳过） |
-| 前端 | 252 | 单文件搜索页 + 索引管理页 |
+| `mcp/` | 200 | stdio JSON-RPC 的 MCP server |
+| `util/` + 入口 | 702 | JSON、变长编码、日志、CLI |
+| **主代码合计** | **6,458** | 39 个文件 |
+| 测试 | 1474 | 65 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| 前端 | 255 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
 
@@ -196,6 +196,10 @@ docker compose up --build      # http://localhost:9200
 服务默认只绑 `127.0.0.1`；`serve --host 0.0.0.0` 才对外网卡开放。容器镜像里是特意传了 `--host 0.0.0.0`
 的——容器内的回环地址宿主机访问不到，不这么做映射端口就是空映射。本机用不着就别开：
 `/api/index` 和 `/api/crawl` 是没有鉴权的写接口。
+
+对外映射默认也只落在宿主机的回环上（`127.0.0.1:9200:9200`），所以 `docker compose up` 本身不会把服务
+摊到局域网里；要摊得显式写 `MS_HOST=0.0.0.0`。`MS_XMX` 用来调那个 1 GB 堆上限——它存在的意义就是让一次
+失控的抓取撞墙而死，而不是把整台机器吃掉。
 
 > 已在本机验证：`docker build` 产出 425 MB 镜像，`docker compose up -d` 起容器后 `:9200` 的统计与搜索接口均正常，中文不乱码。第一次构建慢，是因为容器里要下一遍 Maven 依赖，第二次走缓存。
 
@@ -276,6 +280,9 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
   `--allow-private-crawls` 是**按进程**关掉这条检查，故意不做成按请求，否则攻击者用同一个请求就能
   把开关打开。
 
+- **写接口有体积上限。** `POST /api/index`、`POST /api/crawl` 超过 8 MiB 直接回 413 而不会把请求体读进内存，
+  `topK` / `from` 也是钳制而不是照信。一个会存下你提交内容的接口，不该顺带成为一张无上限的内存欠条。
+
 没解决的：域名到地址的解析结果没有钉住到连接上，所以 DNS rebinding 仍然成立；没有 TLS、没有限速；
 快照文件是可信输入（CRC 只防损坏，不防别人伪造）。残余风险和上报方式写在 [SECURITY.md](SECURITY.md)。
 
@@ -283,7 +290,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 63 个用例
+mvn -B test                                  # 65 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000

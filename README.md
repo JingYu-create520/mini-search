@@ -110,16 +110,16 @@ industrial benchmark.
 | `hybrid/` | 76 | RRF and weighted score fusion |
 | `vector/` | 1086 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
 | `semantic/` | 145 | distributed thesaurus (co-occurrence cosine) — the semantic model that works on small corpora |
-| `search/` | 442 | query orchestration, four modes, highlighting |
+| `search/` | 447 | query orchestration, four modes, highlighting |
 | `crawl/` | 863 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction, a target policy that refuses private addresses |
-| `api/` | 337 | routes and static assets on the JDK HTTP server |
+| `api/` | 364 | routes and static assets on the JDK HTTP server |
 | `core/` | 973 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
 | `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
-| `mcp/` | 194 | MCP server over stdio JSON-RPC |
-| `util/` + CLI | 699 | JSON, varbyte, logging, commands |
-| **main** | **6,417** | 39 files |
-| tests | 1431 | 63 cases |
-| UI | 252 | single-file search page + index admin page |
+| `mcp/` | 200 | MCP server over stdio JSON-RPC |
+| `util/` + CLI | 702 | JSON, varbyte, logging, commands |
+| **main** | **6,458** | 39 files |
+| tests | 1474 | 65 cases |
+| UI | 255 | single-file search page + index admin page |
 
 ## Architecture
 
@@ -182,6 +182,10 @@ The server binds `127.0.0.1` by default — `serve --host 0.0.0.0` opts into the
 image does on purpose (inside a container the loopback interface is unreachable from the host, so a published
 port would connect to nothing). Reach for it only when you mean it: `/api/index` and `/api/crawl` are
 unauthenticated writes.
+
+The published mapping is host-loopback only (`127.0.0.1:9200:9200`), so `compose up` does not by itself put
+the engine on the LAN — `MS_HOST=0.0.0.0` says you want that. `MS_XMX` moves the 1 GB heap ceiling that
+keeps a runaway crawl from eating the container.
 
 > Verified on this machine: `docker build` produces a 425 MB image, `docker compose up -d` starts it, and `:9200` serves both the stats and the search API with CJK intact. The first build is slow because Maven downloads its dependencies inside the container; the second one hits the cache.
 
@@ -258,6 +262,10 @@ no accounts and no tokens — the right trade on a laptop, the wrong one on a ne
   back out of `/api/search`. `--allow-private` / `--allow-private-crawls` switch this off for a whole
   process, deliberately not for a single request.
 
+- **Writes are capped.** `POST /api/index` and `POST /api/crawl` answer 413 above 8 MiB instead of
+  reading the body, and `topK` / `from` are clamped rather than trusted. An endpoint that stores what
+  you hand it should not also be an unbounded memory grant.
+
 Not solved: the name-to-address check is not pinned to the connection, so DNS rebinding is still open;
 there is no TLS, no rate limiting, and the snapshot file is trusted (CRCs catch corruption, not a
 hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to report one.
@@ -266,7 +274,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 63 cases
+mvn -B test                         # 65 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers
