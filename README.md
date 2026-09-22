@@ -1,6 +1,6 @@
 # mini-search
 
-A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 224 KB jar with no runtime dependencies.
+A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 225 KB jar with no runtime dependencies.
 
 ```bash
 java -jar mini-search.jar          # then open http://localhost:9200
@@ -113,12 +113,12 @@ industrial benchmark.
 | `search/` | 447 | query orchestration, four modes, highlighting |
 | `crawl/` | 863 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction, a target policy that refuses private addresses |
 | `api/` | 404 | routes and static assets on the JDK HTTP server |
-| `core/` | 992 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
+| `core/` | 1031 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
 | `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 200 | MCP server over stdio JSON-RPC |
 | `util/` + CLI | 725 | JSON, varbyte, logging, commands |
-| **main** | **6,552** | 39 files |
-| tests | 1562 | 68 cases |
+| **main** | **6,591** | 39 files |
+| tests | 1588 | 69 cases |
 | UI | 255 | single-file search page + index admin page |
 
 ## Architecture
@@ -148,7 +148,7 @@ java -jar mini-search.jar bench --docs 50000
 java -jar mini-search.jar mcp                         # MCP server on stdio
 ```
 
-Index state persists to a CRC-checked snapshot (`data/index.msnap`). A corrupt or stale snapshot is detected and rebuilt rather than half-trusted. The words from `--dict` travel with it as well: they decided how your documents were cut, so a restore that forgot them would split a query differently from the postings and hand back an empty list for a word that is plainly in the index.
+Index state persists to a CRC-checked snapshot (`data/index.msnap`). A corrupt or stale snapshot is detected and rebuilt rather than half-trusted. The words from `--dict` travel with it as well: they decided how your documents were cut, so a restore that forgot them would split a query differently from the postings and hand back an empty list for a word that is plainly in the index. `--stopwords` and `--no-mining` change the term stream the same way but more quietly, so the snapshot records which of them were in play and a restore under different flags says so in a warning instead of letting you debug a ranking difference.
 
 ### HTTP API
 
@@ -218,7 +218,7 @@ The gate is calibrated, not guessed: at 50k documents the same code trains a 30k
 
 **Optional: a real pretrained model, locally.** `scripts/fetch-model.sh` pulls bge-small-zh-v1.5 as int8 ONNX (24 MB) plus ONNX Runtime from hf-mirror, which works from a mainland-China connection without a proxy; `--model models/bge-small-zh-v1.5` swaps the encoder and the token gate stops applying, because a pretrained model is precisely what makes semantics work on a small corpus. Measured: recall@5 0.934 → 0.987, and the two impossible queries come back.
 
-It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 224 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
+It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 225 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
 
 Two model-specific traps are exposed as flags because both change ranking: `--pool cls|mean` (BGE ships with CLS pooling; mean still runs and still looks plausible) and the query-side instruction prefix (`为这个句子生成表示以用于检索文章：`, which the Chinese BGE models expect on queries only). Defaults are the measured-better side of each.
 
@@ -276,7 +276,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 68 cases
+mvn -B test                         # 69 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

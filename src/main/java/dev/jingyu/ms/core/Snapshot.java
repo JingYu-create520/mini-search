@@ -70,6 +70,19 @@ public final class Snapshot {
 
     public byte[] model() { return sections.get("w2v"); }
 
+    /**
+     * One labelled string, kept as a section so a file written before it existed simply lacks it --
+     * which is the same tolerance the format already has for {@code w2v}.
+     */
+    public void putString(String name, String value) {
+        sections.put(name, value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    public String string(String name) {
+        byte[] b = sections.get(name);
+        return b == null ? "" : new String(b, StandardCharsets.UTF_8);
+    }
+
     public void writeTo(Path file) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream(1 << 20);
         DataOutputStream head = new DataOutputStream(bos);

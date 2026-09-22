@@ -97,6 +97,24 @@ public final class Engine {
      */
     private final List<String> customWords = new ArrayList<>();
 
+    /**
+     * What the snapshot was cut with. Two switches change the term stream itself -- stopword removal
+     * and new-word mining -- so a restore that runs with different ones is no longer tokenizing queries
+     * the way the stored postings were tokenized. That is the same family of failure as a forgotten
+     * {@code --dict}: quieter, because results usually just shift instead of vanishing, and still worth
+     * saying out loud rather than letting someone debug it.
+     */
+    private static String tokenizationKey(Options o) {
+        return "stopwords=" + o.stopwords + ",mining=" + o.mine;
+    }
+
+    /** Null when the snapshot and this process agree about how terms are produced. */
+    public String tokenizationDrift() {
+        return tokenizationDrift;
+    }
+
+    private String tokenizationDrift;
+
     private EmbeddingModel model;
     private dev.jingyu.ms.vector.Encoder encoder;   // model, or a pretrained one when --model is given
     private VectorIndex vectors;
@@ -498,6 +516,7 @@ public final class Engine {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         if (model != null) model.save(bos);
         Snapshot s = Snapshot.of(index, minedWords, customWords, vecs, ids, fingerprint);
+        s.putString("aterms", tokenizationKey(options));
         s.putModel(bos.toByteArray());
         s.writeTo(file);
     }
@@ -527,6 +546,13 @@ public final class Engine {
                         e.customWords.size());
             }
             e.lexicon.seal();
+            String built = s.string("aterms");
+            String now = tokenizationKey(e.options);
+            if (!built.isEmpty() && !built.equals(now)) {
+                e.tokenizationDrift = "snapshot was cut with " + built + ", this run is " + now;
+                Log.warn("%s -- results will differ from the run that wrote it; pass the same flags, or"
+                        + " --rebuild to re-cut the index here", e.tokenizationDrift);
+            }
 
             List<Object[]> rows = new ArrayList<>();
             Snapshot.readDocs(s.raw("docs"), rows);

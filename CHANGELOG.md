@@ -4,6 +4,23 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.4 — 2026-09-22
+
+### Added — the snapshot remembers how it was cut
+`--stopwords` and `--no-mining` change which terms exist, so restoring a snapshot under different flags
+means the query is tokenized differently from the stored postings. The dictionary case (0.1.3) failed
+loudly by returning nothing; this one only shifts rankings, which is harder to notice and easier to
+spend an afternoon on. The snapshot now records the term-stream switches it was built with, and a
+restore that disagrees warns with both sides named and the `--rebuild` escape:
+
+```
+WARN snapshot was cut with stopwords=false,mining=true, this run is stopwords=true,mining=true
+     -- results will differ from the run that wrote it; pass the same flags, or --rebuild to re-cut
+```
+
+Old files carry no such record, so they stay quiet rather than warning about every snapshot written
+before this existed.
+
 ## 0.1.3 — 2026-09-22
 
 ### Fixed — a custom dictionary that vanished on restart

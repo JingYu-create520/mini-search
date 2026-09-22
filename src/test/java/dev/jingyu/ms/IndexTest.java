@@ -243,6 +243,32 @@ class IndexTest {
     }
 
     @Test
+    @DisplayName("快照记住了它当初是怎么切的：选项变了要说出来")
+    void restoreWarnsWhenTheTermStreamWouldChange() throws IOException {
+        List<Corpus.RawDoc> docs = Corpus.loadDemo();
+        Engine.Options base = new Engine.Options().vectors(false);
+        Engine built = Engine.build(docs, base);
+        Path file = Files.createTempFile("ms-drift", ".msnap");
+        try {
+            built.save(file);
+
+            Engine same = Engine.restore(file, new Engine.Options().vectors(false), docs);
+            assertNull(same.tokenizationDrift(), "identical flags must not produce a warning");
+
+            Engine.Options stopped = new Engine.Options().vectors(false);
+            stopped.stopwords = true;
+            Engine drifted = Engine.restore(file, stopped, docs);
+            assertNotNull(drifted.tokenizationDrift(),
+                    "stopwords change which terms exist, so a restore under them is a different index");
+            assertTrue(drifted.tokenizationDrift().contains("stopwords=false")
+                            && drifted.tokenizationDrift().contains("stopwords=true"),
+                    () -> "the message should name both sides: " + drifted.tokenizationDrift());
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
     void corruptedSnapshotIsDetectedNotTrusted() throws IOException {
         Engine e = Engine.build(Corpus.loadDemo(), new Engine.Options().vectors(false));
         Path file = Files.createTempFile("ms-corrupt", ".msnap");
