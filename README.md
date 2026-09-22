@@ -113,12 +113,12 @@ industrial benchmark.
 | `search/` | 447 | query orchestration, four modes, highlighting |
 | `crawl/` | 863 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction, a target policy that refuses private addresses |
 | `api/` | 404 | routes and static assets on the JDK HTTP server |
-| `core/` | 1031 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
+| `core/` | 1052 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
 | `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 200 | MCP server over stdio JSON-RPC |
 | `util/` + CLI | 802 | JSON, varbyte, logging, commands |
-| **main** | **6,687** | 39 files |
-| tests | 1767 | 76 cases |
+| **main** | **6,708** | 39 files |
+| tests | 1828 | 78 cases |
 | UI | 255 | single-file search page + index admin page |
 
 ## Architecture
@@ -148,7 +148,7 @@ java -jar mini-search.jar bench --docs 50000
 java -jar mini-search.jar mcp                         # MCP server on stdio
 ```
 
-Index state persists to a CRC-checked snapshot (`data/index.msnap`). A corrupt or stale snapshot is detected and rebuilt rather than half-trusted. The words from `--dict` travel with it as well: they decided how your documents were cut, so a restore that forgot them would split a query differently from the postings and hand back an empty list for a word that is plainly in the index. `--stopwords` and `--no-mining` change the term stream the same way but more quietly, so the snapshot records which of them were in play and a restore under different flags says so in a warning instead of letting you debug a ranking difference.
+Index state persists to a CRC-checked snapshot (`data/index.msnap`). A corrupt or stale snapshot is detected and rebuilt rather than half-trusted — including one written by an older format version, so dump first (`mini-search dump --out all.jsonl`) if the only copy of your crawled pages lives in the snapshot. The words from `--dict` travel with it as well: they decided how your documents were cut, so a restore that forgot them would split a query differently from the postings and hand back an empty list for a word that is plainly in the index. `--stopwords` and `--no-mining` change the term stream the same way but more quietly, so the snapshot records which of them were in play and a restore under different flags says so in a warning instead of letting you debug a ranking difference.
 
 ### HTTP API
 
@@ -277,7 +277,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 76 cases
+mvn -B test                         # 78 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

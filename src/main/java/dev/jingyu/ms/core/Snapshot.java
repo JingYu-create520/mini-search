@@ -36,7 +36,7 @@ import java.util.zip.CRC32;
 public final class Snapshot {
 
     public static final String MAGIC = "MSSN";
-    public static final int VERSION = 1;
+    public static final int VERSION = 2;
 
     private final long fingerprint;
     private final Map<String, byte[]> sections = new LinkedHashMap<>();
@@ -136,6 +136,27 @@ public final class Snapshot {
 
     // ------------------------------------------------------------------ payload codecs
 
+    /**
+     * Length-prefixed UTF-8, because {@code DataOutput.writeUTF} caps a string at 65535 bytes of
+     * modified UTF-8 -- roughly 21k Chinese characters -- and a single crawled article goes past that
+     * without anyone trying. Hitting the cap threw from {@code save()} *after* the documents were
+     * already indexed, so the run looked like it had worked and had persisted nothing. It also stores
+     * real UTF-8 rather than CESU-8, so supplementary characters (emoji) survive the round trip.
+     */
+    static void writeStr(DataOutputStream out, String s) throws IOException {
+        byte[] b = s.getBytes(StandardCharsets.UTF_8);
+        out.writeInt(b.length);
+        out.write(b);
+    }
+
+    static String readStr(DataInputStream in) throws IOException {
+        int n = in.readInt();
+        if (n < 0) throw new IOException("negative string length " + n);
+        byte[] b = in.readNBytes(n);
+        if (b.length != n) throw new IOException("truncated string field: wanted " + n + " bytes, got " + b.length);
+        return new String(b, StandardCharsets.UTF_8);
+    }
+
     private static byte[] writeDocs(InvertedIndex index) throws IOException {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bos);
@@ -143,11 +164,11 @@ public final class Snapshot {
         out.writeInt(docs.size());
         for (Doc d : docs) {
             out.writeInt(d.id());
-            out.writeUTF(d.externalId());
-            out.writeUTF(d.url());
-            out.writeUTF(d.field(Doc.TITLE));
-            out.writeUTF(d.field(Doc.BODY));
-            out.writeUTF(d.field(Doc.TAGS));
+            writeStr(out, d.externalId());
+            writeStr(out, d.url());
+            writeStr(out, d.field(Doc.TITLE));
+            writeStr(out, d.field(Doc.BODY));
+            writeStr(out, d.field(Doc.TAGS));
         }
         out.flush();
         return bos.toByteArray();
@@ -157,7 +178,7 @@ public final class Snapshot {
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload));
         int n = in.readInt();
         for (int i = 0; i < n; i++) {
-            into.add(new Object[]{in.readInt(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF(), in.readUTF()});
+            into.add(new Object[]{in.readInt(), readStr(in), readStr(in), readStr(in), readStr(in), readStr(in)});
         }
     }
 
@@ -171,7 +192,7 @@ public final class Snapshot {
             out.writeInt(entries.size());
             for (var e : entries) {
                 PostingList p = e.getValue();
-                out.writeUTF(e.getKey());
+                writeStr(out, e.getKey());
                 VarInt.write(out, p.size());
                 int prev = 0;
                 for (int i = 0; i < p.size(); i++) { VarInt.write(out, p.doc(i) - prev); prev = p.doc(i); }
@@ -200,7 +221,7 @@ public final class Snapshot {
             Map<String, List<Object[]>> byTerm = new LinkedHashMap<>();
             int nt = in.readInt();
             for (int t = 0; t < nt; t++) {
-                String term = in.readUTF();
+                String term = readStr(in);
                 int n = VarInt.read(in);
                 int[] docs = new int[n];
                 int prev = 0;
@@ -265,7 +286,7 @@ public final class Snapshot {
         ByteArrayOutputStream bos = new ByteArrayOutputStream();
         DataOutputStream out = new DataOutputStream(bos);
         out.writeInt(words.size());
-        for (String w : words) out.writeUTF(w);
+        for (String w : words) writeStr(out, w);
         out.flush();
         return bos.toByteArray();
     }
@@ -275,7 +296,7 @@ public final class Snapshot {
         DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload));
         int n = in.readInt();
         List<String> out = new ArrayList<>(n);
-        for (int i = 0; i < n; i++) out.add(in.readUTF());
+        for (int i = 0; i < n; i++) out.add(readStr(in));
         return out;
     }
 

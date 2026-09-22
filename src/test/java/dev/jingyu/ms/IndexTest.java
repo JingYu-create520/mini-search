@@ -341,6 +341,67 @@ class IndexTest {
     }
 
     @Test
+    @DisplayName("一篇长正文不能把快照写坏：writeUTF 的 65535 字节上限曾经直接抛")
+    void longDocumentsSurviveTheSnapshot() throws IOException {
+        String body = "长文测试内容".repeat(40_000);            // ~600 KB of UTF-8, ~10x the old cap
+        assertTrue(body.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 65_535,
+                "the fixture has to clear the limit it is testing");
+
+        List<Corpus.RawDoc> docs = new ArrayList<>();
+        docs.add(new Corpus.RawDoc("big", "u", "超长正文", body, "长文"));
+        docs.add(new Corpus.RawDoc("small", "u2", "短文档", "另一篇短一些的文档，带一个符号 🎯。", ""));
+
+        Engine.Options o = new Engine.Options().vectors(false).mining(false);
+        Engine built = Engine.build(docs, o);
+        Path file = Files.createTempFile("ms-long", ".msnap");
+        try {
+            built.save(file);                                   // this call used to throw
+            Engine back = Engine.restore(file, o, docs);
+            assertEquals(2, back.index().numDocs());
+            int big = back.index().find("big");
+            assertEquals(body, back.index().doc(big).field("body"), "bodies must come back byte-for-byte");
+            assertTrue(back.index().doc(back.index().find("small")).field("body").contains("🎯"),
+                    "supplementary characters must survive the round trip");
+            assertEquals(built.searcher().rankedIds("长文", Searcher.Mode.BM25, 5),
+                    back.searcher().rankedIds("长文", Searcher.Mode.BM25, 5));
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
+    @DisplayName("旧版本的快照要被认出来并重建，而不是按新格式硬解")
+    void olderSnapshotVersionFallsBackToRebuild() throws IOException {
+        List<Corpus.RawDoc> docs = Corpus.loadDemo();
+        Engine.Options o = new Engine.Options().vectors(false);
+        Engine built = Engine.build(docs, o);
+        Path file = Files.createTempFile("ms-oldver", ".msnap");
+        try {
+            built.save(file);
+            byte[] raw = Files.readAllBytes(file);
+            // The header is writeUTF("MSSN") then writeInt(VERSION): two length bytes, four magic
+            // bytes, then the version as a big-endian int -- so the byte to rewind is the one seven
+            // past the start of the magic, not somewhere inside the fingerprint that follows it.
+            int at = -1;
+            for (int i = 0; i + 7 < raw.length; i++) {
+                if (raw[i] == 'M' && raw[i + 1] == 'S' && raw[i + 2] == 'S' && raw[i + 3] == 'N') {
+                    at = i;
+                    break;
+                }
+            }
+            assertTrue(at >= 0, "the snapshot header should carry the magic where the test expects it");
+            raw[at + 7] = 1;
+            Files.write(file, raw);
+
+            Engine back = Engine.restore(file, o, docs);
+            assertEquals(docs.size(), back.index().numDocs(),
+                    "a refused snapshot must fall back to a full rebuild, not a partial index");
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    @Test
     void corruptedSnapshotIsDetectedNotTrusted() throws IOException {
         Engine e = Engine.build(Corpus.loadDemo(), new Engine.Options().vectors(false));
         Path file = Files.createTempFile("ms-corrupt", ".msnap");

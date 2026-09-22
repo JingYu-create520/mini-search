@@ -4,6 +4,36 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.8 — 2026-09-22
+
+### Fixed — a long document made the snapshot impossible to write
+Strings in the snapshot were written with `DataOutput.writeUTF`, which caps a string at 65535 bytes of
+modified UTF-8 — about 21,000 Chinese characters. A single crawled article goes past that without anyone
+trying: the fetch limit is 2 MiB, and `POST /api/index` accepts up to 8 MiB. Hitting the cap threw from
+`save()` *after* the documents were already indexed, so `mini-search index big.jsonl` printed a stack
+trace and persisted nothing, and the run looked like it had worked.
+
+Reproduced on the previous commit with a 360 KB body (120k Chinese characters — a long blog post, not
+a stress test); after the fix the same command indexes, saves, and the restored snapshot finds the
+document again.
+
+Fields and dictionary terms are now length-prefixed UTF-8 instead, which also means real UTF-8 rather
+than CESU-8 on disk, so supplementary characters round-trip.
+
+**Upgrade note, and it is a breaking one:** the format is `VERSION = 2`. A snapshot written by 0.1.7 or
+earlier is now refused and rebuilt from the corpus, which is the designed path — but if the only copy of
+your crawled documents lives in that snapshot, run `mini-search dump --out all.jsonl` **before**
+upgrading, then point `--corpus` at what you dumped. `dump` exists as of 0.1.7 for exactly this reason.
+
+### Added — two tests that the fix without them would not have
+`longDocumentsSurviveTheSnapshot` saves and restores a 600 KB body and an emoji, comparing the text
+byte-for-byte and the ranking list. `olderSnapshotVersionFallsBackToRebuild` rewrites the version int in
+a real header — two length bytes, four magic bytes, then a big-endian int, so the byte to touch is seven
+past the start of the magic — and requires the reader to refuse and rebuild rather than decode 4-byte
+lengths as 2-byte ones.
+
+78 tests, `data/eval/report.md` byte-identical to 0.1.7's.
+
 ## 0.1.7 — 2026-09-22
 
 ### Added — `dump`, and the sentence the README was missing

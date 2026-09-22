@@ -111,12 +111,12 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `search/` | 447 | 查询编排、四种模式、高亮与摘要 |
 | `crawl/` | 863 | 礼貌爬虫、robots、64 位指纹去重、编码探测、链接密度正文抽取、内网目标默认拒绝 |
 | `api/` | 404 | JDK HttpServer 路由与静态资源 |
-| `core/` | 1031 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
+| `core/` | 1052 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
 | `eval/` | 358 | recall/precision/nDCG/MRR 与规模基准 |
 | `mcp/` | 200 | stdio JSON-RPC 的 MCP server |
 | `util/` + 入口 | 802 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6,687** | 39 个文件 |
-| 测试 | 1767 | 76 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| **主代码合计** | **6,708** | 39 个文件 |
+| 测试 | 1828 | 78 个用例（4 个需要本地模型，缺模型时自动跳过） |
 | 前端 | 255 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
@@ -151,7 +151,7 @@ java -jar mini-search.jar crawl https://example.com/start --max 30 --depth 2
 java -jar mini-search.jar analyze "我的领域词" --dict company.dict
 ```
 
-`data/corpus/*.jsonl` 的格式就是最小格式：`id / title / body / url / tags`。索引会落盘成带 CRC 的快照（`data/index.msnap`），下次启动直接恢复，损坏的快照会被识别并重建，而不是半信半疑地服务。
+`data/corpus/*.jsonl` 的格式就是最小格式：`id / title / body / url / tags`。索引会落盘成带 CRC 的快照（`data/index.msnap`），下次启动直接恢复，损坏的快照会被识别并重建，而不是半信半疑地服务——**旧格式的快照也在"重建"这一类里**，所以如果你抓来的网页只存在快照里，升级前先 `mini-search dump --out all.jsonl` 导出来，再用 `--corpus` 指回去。
 
 `--dict` 里的词也一起进快照。原因不是方便，是正确性：这些词决定了当初怎么切你的文档，恢复时如果忘了它们，同一个查询会被切成和倒排表不一样的词，结果是**一个明明白白躺在索引里的词搜出来是空的**——不报错，只是没有结果。`--stopwords`、`--no-mining` 同样会改变词流，只是温和一些，所以快照也记下当初开了哪些开关：换个开关恢复，启动时会警告你"这份索引不是这么切的"，而不是让你自己去调一个说不清的排序差异。
 
@@ -295,7 +295,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 76 个用例
+mvn -B test                                  # 78 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000
