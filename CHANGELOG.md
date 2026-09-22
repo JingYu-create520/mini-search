@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.1.2 — 2026-09-22
 
 ### Added — the README can no longer lie about its own repo
 `scripts/check-claims.sh` re-counts the tree and compares it against every self-referential number in
