@@ -81,6 +81,9 @@ public final class Bench {
         out.put("documents", docs);
         out.put("indexBuildSeconds", round(buildSecs));
         out.put("docsPerSecond", round(docs / buildSecs));
+        // The per-stage numbers belong in the artifact too: the docs quote them, and a timing that
+        // only ever appeared on someone's stderr is not a claim anybody else can check.
+        out.put("stages", new LinkedHashMap<>(e.stageSeconds()));
         out.put("mining", mine);
         out.put("vectors", vectors);
         out.put("terms", e.index().vocabularySize());

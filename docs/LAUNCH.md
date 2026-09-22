@@ -8,7 +8,7 @@
 ## GitHub → Settings → Description（一个输入框）
 
 ```
-Local-first hybrid search engine for Chinese: hand-written analyser, inverted index (BM25), distributed thesaurus, self-trained word vectors + HNSW, RRF fusion. One 214KB jar, zero runtime dependencies, no model download.
+Local-first hybrid search engine for Chinese: hand-written analyser, inverted index (BM25), distributed thesaurus, self-trained word vectors + HNSW, RRF fusion. One 222KB jar, zero runtime dependencies, no model download.
 ```
 
 ## GitHub → Settings → Topics（逐个回车）
@@ -37,7 +37,7 @@ inverted-index
 **Title（67 字符，HN 上限 80）**
 
 ```
-Show HN: A local-first Chinese hybrid search engine in a 214KB jar
+Show HN: A local-first Chinese hybrid search engine in a 222KB jar
 ```
 
 **URL**
@@ -51,8 +51,8 @@ https://github.com/JingYu-create520/mini-search
 ```
 Everything in here is hand-written on purpose: the Chinese analyser, the inverted index, BM25, SGNS
 word vectors, HNSW, RRF fusion, the polite crawler, the main-text extractor, the HTTP server and the
-JSON parser. No Lucene, no HanLP, no Spring, no vector DB, no model download. Total: 6,104 lines of
-main code in 38 files, and the jar is 214KB.
+JSON parser. No Lucene, no HanLP, no Spring, no vector DB, no model download. Total: 6,417 lines of
+main code in 39 files, and the jar is 222KB.
 
 The reason for not importing anything is narrow: I wanted every layer to be small enough to read, and
 that promise dies the moment "the search part" is a black-box dependency.
@@ -60,7 +60,7 @@ that promise dies the moment "the search part" is a black-box dependency.
 Numbers, all reproducible from the repo (mini-search eval / mini-search bench):
 - 38 hand-labelled queries over an 84-document CC0 corpus: bm25 recall@5 0.934, nDCG@5 0.912; hybrid
   nDCG@5 0.918
-- 50k documents: index build 13.6s, BM25 p50 10.3ms / p95 35.2ms, hybrid p50 21.6ms
+- 50k documents: whole engine built in 304s (inverted index 15.6s of it), BM25 p50 15.5ms / p95 48.9ms, hybrid p50 28.7ms
 - HNSW vs exact k-NN: recall@10 >= 0.95, asserted in a test
 
 Two findings I'd rather publish than bury:
@@ -80,9 +80,14 @@ Known limits, stated in the README: two labelled queries that no lexical method 
 gap), single-segment snapshot with no background merge, and the thesaurus degrades on the synthetic
 benchmark corpus because recombined sentences destroy co-occurrence sparsity.
 
+The server binds 127.0.0.1 and has no auth, which is the right trade for a tool that is yours alone --
+so `--host 0.0.0.0` warns, and the crawler refuses loopback / link-local / RFC1918 targets by default
+(checking before robots.txt is fetched, and again after redirects), because "local tool" stops being
+true the moment someone binds a port. SECURITY.md lists what that still does not cover.
+
 Java 17. `java -jar mini-search.jar` -> http://localhost:9200, demo corpus inside the jar. There is
 also an MCP server (`mcp` subcommand) so an agent can use it as a local Google. If you don't want to
-build: the jar is attached to the latest release (214KB, one file).
+build: the jar is attached to the latest release (222KB, one file).
 ```
 
 ---
@@ -100,7 +105,7 @@ I wrote a local-first hybrid search engine for Chinese in 5.5k lines of dependen
 ```
 What it is: crawler -> hand-written Chinese analyser (dictionary + statistical new-word mining) ->
 inverted index with BM25 -> distributed thesaurus and/or self-trained word vectors with HNSW -> RRF
-fusion -> web UI. One 214KB jar. No Lucene, no HanLP, no Spring, no vector DB, and no model download,
+fusion -> web UI. One 222KB jar. No Lucene, no HanLP, no Spring, no vector DB, and no model download,
 so it runs fully offline.
 
 Repo: https://github.com/JingYu-create520/mini-search
@@ -110,8 +115,8 @@ skip-gram with negative sampling on my own corpus and measured it honestly:
 
 - 84 documents (~7k tokens): vector recall@5 = 0.026. Essentially random. Worse, RRF-fusing that list
   dragged hybrid *below* plain BM25.
-- 50,000 documents (~7M tokens): 30k vocabulary, 51M gradient updates, 140s of training, HNSW build
-  156s, hybrid p50 21.6ms -- and it earns its place in the fusion.
+- 50,000 documents (~7M tokens): 30k vocabulary, 103M gradient updates over 2 epochs, 211.3s of
+  training, HNSW graph 14.7s, hybrid p50 28.7ms -- and it earns its place in the fusion.
 
 So the dense encoder is now gated on corpus size (400k tokens) and logs why when it stands down. For
 semantics on small corpora I use a distributed thesaurus instead: co-occurrence cosine over document
@@ -119,7 +124,7 @@ indicator vectors, query expansion, no training at all. That is a 1970s SMART id
 size where modern embeddings simply cannot.
 
 Numbers: 38 hand-labelled queries, bm25 recall@5 0.934 / nDCG@5 0.912, hybrid nDCG@5 0.918. HNSW
-recall@10 >= 0.95 against exact k-NN, asserted in CI. 50k docs: index build 13.6s, p50 10.3ms.
+recall@10 >= 0.95 against exact k-NN, asserted in CI. 50k docs: 304s to build the engine, BM25 p50 15.5ms.
 
 What it does NOT have: pretrained embeddings (the Encoder interface is where a bge/ONNX model would
 go), spell correction, facets, distribution, background segment merging. Two labelled queries are
@@ -136,7 +141,7 @@ an MCP server so agents can use it as a local Google.
 **标题**
 
 ```
-我从零写了一个能搜中文的搜索引擎：6104 行、零依赖、214KB 一个 jar
+我从零写了一个能搜中文的搜索引擎：6417 行、零依赖、222KB 一个 jar
 ```
 
 **正文**：直接用仓库里的 `docs/ARTICLE.zh-CN.md`（已按掘金 Markdown 写好，含表格与代码块）。
@@ -150,14 +155,14 @@ an MCP server so agents can use it as a local Google.
 **标题**
 
 ```
-[开源] 本地优先的中文混合搜索引擎：自研分词+倒排+BM25+HNSW+RRF，6104 行零依赖，一个 214KB jar
+[开源] 本地优先的中文混合搜索引擎：自研分词+倒排+BM25+HNSW+RRF，6417 行零依赖，一个 222KB jar
 ```
 
 **正文**
 
 ```
 写了一个能搜中文的本地搜索引擎，全部手写：没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，
-也没有任何需要下载的模型（想要最强语义可以一条命令加装 24MB 的本地 bge 模型，仍然离线）。主代码 6104 行 / 38 个文件，jar 214KB，运行时零依赖。
+也没有任何需要下载的模型（想要最强语义可以一条命令加装 24MB 的本地 bge 模型，仍然离线）。主代码 6417 行 / 39 个文件，jar 222KB，运行时零依赖。
 
 java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar 里，断网可用。
 
@@ -166,7 +171,7 @@ java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar �
 实测（38 条人工标注查询，可自己跑 mini-search eval）：
 · bm25 recall@5 0.934，nDCG@5 0.912
 · hybrid（RRF 融合）nDCG@5 0.918
-· 5 万文档：建索引 13.6 秒，查询 p50 10.3ms / p95 35.2ms
+· 5 万文档：整个引擎从零建好 304 秒（倒排索引本身 15.6 秒），查询 p50 15.5ms / p95 48.9ms
 · HNSW 对比暴力 KNN，recall@10 ≥ 0.95（这条写在测试里，改坏了 CI 就红）
 
 两个踩过的坑值得单独说：
@@ -193,7 +198,7 @@ java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar �
 
 ## 发布前自检（我已经做完的部分标了 ✅）
 
-- ✅ 57 个测试全绿；`mvn -B package` 出 214KB jar；无关目录下 `java -jar` 冷启动可搜
+- ✅ 62 个测试全绿；`mvn -B package` 出 222KB jar；无关目录下 `java -jar` 冷启动可搜
 - ✅ README 双语、GIF 是真界面（`?tour=1` 自走）、评测与基准数字已提交进仓库
 - ✅ LICENSE(MIT)、CI 工作流（测试 + 评测门槛 + jar 冒烟）、Dockerfile/compose
 - ✅ Docker 已在本机验证：`docker build` 出 425MB 镜像，`docker compose up -d` 后 `:9200` 的统计与搜索接口均正常，中文不乱码

@@ -50,48 +50,90 @@ public final class Crawler {
     private final long minIntervalMillis;
     private final int timeoutMs;
     private final String userAgent;
+    private final UrlPolicy policy;
 
+    /** Public addresses only, which is what a process that might be reached by others should use. */
     public Crawler(String userAgent, long minIntervalMillis, int maxBytes, int timeoutMs) {
+        this(userAgent, minIntervalMillis, maxBytes, timeoutMs, UrlPolicy.STANDARD);
+    }
+
+    public Crawler(String userAgent, long minIntervalMillis, int maxBytes, int timeoutMs, UrlPolicy policy) {
         this.userAgent = userAgent;
         this.minIntervalMillis = minIntervalMillis;
         this.timeoutMs = timeoutMs;
+        this.policy = policy;
         this.fetcher = new Fetcher(userAgent, maxBytes);
         this.robots = new Robots(userAgent);
     }
 
     public static Crawler standard() {
-        return new Crawler("mini-search/0.1 (+https://github.com/JingYu-create520/mini-search)",
-                1000, 2 << 20, 12_000);
+        return withPolicy(UrlPolicy.STANDARD);
     }
 
-    /** Fetch one page, extract it, and index it. Never throws. */
+    /** Same crawler, different idea of what may be fetched. */
+    public static Crawler withPolicy(UrlPolicy policy) {
+        return new Crawler("mini-search/0.1 (+https://github.com/JingYu-create520/mini-search)",
+                1000, 2 << 20, 12_000, policy);
+    }
+
     public CrawlResult fetchAndIndex(Engine engine, String url) {
+        return fetchPage(engine, url).result();
+    }
+
+    /** A result line plus the links parsed out of the same body, so crawling need not ask twice. */
+    private record Fetched(CrawlResult result, List<String> links) {}
+
+    /**
+     * Fetch one page, extract it, index it. Never throws.
+     *
+     * <p>The target is checked before robots.txt is even looked at, because fetching robots.txt is
+     * itself a request to the address being refused.
+     */
+    private Fetched fetchPage(Engine engine, String url) {
         long t0 = System.nanoTime();
         String normalized = Fingerprint.normalise(url);
-        if (normalized.isEmpty()) return fail(url, "empty url", 0, 0, "", t0);
-        if (!normalized.startsWith("http")) return fail(url, "only http(s) URLs are crawled", 0, 0, "", t0);
+        if (normalized.isEmpty()) return new Fetched(fail(url, "empty url", 0, 0, "", t0), List.of());
+        if (!normalized.startsWith("http")) {
+            return new Fetched(fail(url, "only http(s) URLs are crawled", 0, 0, "", t0), List.of());
+        }
+        UrlPolicy.Decision allowed = policy.check(normalized);
+        if (!allowed.allowed()) {
+            return new Fetched(fail(normalized, "refused: " + allowed.reason(), 0, 0, "", t0), List.of());
+        }
 
         if (!robots.allowed(normalized)) {
-            return new CrawlResult(normalized, false, "disallowed by robots.txt", "", 0, 0, 0, "", ms(t0));
+            return new Fetched(new CrawlResult(normalized, false, "disallowed by robots.txt", "", 0, 0, 0, "",
+                    ms(t0)), List.of());
         }
         waitTurn(normalized);
         try {
             Fetcher.Response res = fetcher.fetch(normalized, timeoutMs);
-            if (!res.ok()) return fail(normalized, "HTTP " + res.status(), res.status(), 0, "", t0);
+            if (!res.ok()) return new Fetched(fail(normalized, "HTTP " + res.status(), res.status(), 0, "", t0),
+                    List.of());
+            // A public page may redirect somewhere private. The request has happened by the time
+            // java.net.http reports the final URL, so what this can still prevent is indexing and
+            // echoing the content back; SECURITY.md states the rest.
+            UrlPolicy.Decision landed = policy.check(res.finalUrl());
+            if (!landed.allowed()) {
+                return new Fetched(fail(normalized, "refused after redirect: " + landed.reason(), res.status(),
+                        0, charsetOf(res), t0), List.of());
+            }
             String html = res.decode();
             HtmlExtractor.Page page = HtmlExtractor.extract(html, res.finalUrl());
             if (page.title().isBlank() && page.text().isBlank()) {
-                return new CrawlResult(normalized, false, "no extractable content", "", 0,
-                        page.links().size(), res.status(), charsetOf(res), ms(t0));
+                return new Fetched(new CrawlResult(normalized, false, "no extractable content", "", 0,
+                        page.links().size(), res.status(), charsetOf(res), ms(t0)), page.links());
             }
             engine.add("url:" + normalized, normalized, page.title(), page.text(), "");
-            return new CrawlResult(normalized, true, "", page.title(), page.text().length(),
-                    page.links().size(), res.status(), charsetOf(res), ms(t0));
+            return new Fetched(new CrawlResult(normalized, true, "", page.title(), page.text().length(),
+                    page.links().size(), res.status(), charsetOf(res), ms(t0)), page.links());
         } catch (IOException e) {
-            return fail(normalized, "fetch failed: " + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 0, 0, "", t0);
+            return new Fetched(fail(normalized, "fetch failed: "
+                    + (e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage()), 0, 0, "", t0),
+                    List.of());
         } catch (RuntimeException e) {
-            return fail(normalized, "unexpected: " + e.getClass().getSimpleName() + " " + e.getMessage(),
-                    0, 0, "", t0);
+            return new Fetched(fail(normalized, "unexpected: " + e.getClass().getSimpleName() + " "
+                    + e.getMessage(), 0, 0, "", t0), List.of());
         }
     }
 
@@ -101,27 +143,23 @@ public final class Crawler {
         Deque<Object[]> queue = new ArrayDeque<>();
         for (String s : seeds) queue.add(new Object[]{Fingerprint.normalise(s), 0});
         int indexed = 0;
-        Set<String> sameHostOnly = new HashSet<>();
-        for (String s : seeds) sameHostOnly.add(hostOf(s));
 
         while (!queue.isEmpty() && indexed < maxDocs) {
             Object[] top = queue.poll();
             String url = (String) top[0];
             int depth = (int) top[1];
             if (url.isEmpty() || !seen.add(Fingerprint.ofStrong(url))) continue;
-            CrawlResult r = fetchAndIndex(engine, url);
+            Fetched fetched = fetchPage(engine, url);
+            CrawlResult r = fetched.result();
             results.add(r);
             if (r.ok()) indexed++;
             if (depth >= maxDepth || !r.ok()) continue;
-            try {
-                Fetcher.Response res = fetcher.fetch(url, timeoutMs);
-                HtmlExtractor.Page page = HtmlExtractor.extract(res.decode(), res.finalUrl());
-                for (String link : page.links()) {
-                    String n = Fingerprint.normalise(link);
-                    if (!seen.contains(Fingerprint.ofStrong(n))) queue.add(new Object[]{n, depth + 1});
-                }
-            } catch (IOException | RuntimeException e) {
-                Log.warn("link harvest failed for %s: %s", url, e.getMessage());
+            // The links came out of the body we already have. An earlier version fetched the page a
+            // second time here, which doubled the request rate against every host and quietly broke
+            // the per-host politeness limit this class exists to keep.
+            for (String link : fetched.links()) {
+                String n = Fingerprint.normalise(link);
+                if (!n.isEmpty() && !seen.contains(Fingerprint.ofStrong(n))) queue.add(new Object[]{n, depth + 1});
             }
         }
         Log.info("crawl finished: %d urls attempted, %d indexed", results.size(), indexed);

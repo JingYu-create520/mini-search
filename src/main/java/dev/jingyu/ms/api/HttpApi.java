@@ -134,8 +134,8 @@ public final class HttpApi {
         String id = query(ex).get("id");
         int docId = intOr(query(ex).get("docId"), -1);
         Map<String, Object> out = new LinkedHashMap<>();
-        dev.jingyu.ms.index.Doc d = docId >= 0 ? engine.index().doc(docId)
-                : id == null ? null : engine.index().doc(engine.index().find(id));
+        dev.jingyu.ms.index.Doc d = docId >= 0 ? engine.doc(docId)
+                : id == null ? null : engine.docByExternalId(id);
         if (d == null) {
             send(ex, 404, Json.write(Map.of("error", "no such document")));
             return;
@@ -170,7 +170,7 @@ public final class HttpApi {
         out.put("indexed", true);
         out.put("docId", doc.id());
         out.put("id", id);
-        out.put("documents", engine.index().numDocs());
+        out.put("documents", engine.numDocs());
         send(ex, 200, Json.write(out));
     }
 

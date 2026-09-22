@@ -8,6 +8,7 @@ import dev.jingyu.ms.crawl.Crawler;
 import dev.jingyu.ms.crawl.Fingerprint;
 import dev.jingyu.ms.crawl.HtmlExtractor;
 import dev.jingyu.ms.crawl.Robots;
+import dev.jingyu.ms.crawl.UrlPolicy;
 import dev.jingyu.ms.eval.EvalHarness;
 import dev.jingyu.ms.mcp.McpServer;
 import dev.jingyu.ms.search.Searcher;
@@ -128,6 +129,9 @@ class InterfaceTest {
 
     private HttpServer server;
     private int port;
+    /** Per-path request counts, so "did the crawler fetch this page once or twice?" is answerable. */
+    private final Map<String, java.util.concurrent.atomic.AtomicInteger> requests =
+            new java.util.concurrent.ConcurrentHashMap<>();
 
     @BeforeEach
     void startServer() throws IOException {
@@ -142,6 +146,7 @@ class InterfaceTest {
                 "<html><head><title>只有标题</title></head><body><ul><li><a href=/1>一</a></li></ul></body></html>".getBytes());
         handler("/gbk.html", 200, "text/html", gbkBytes());
         handler("/charset-mismatch.html", 200, "text/html; charset=iso-8859-1", article().getBytes(StandardCharsets.UTF_8));
+        redirect("/moved.html", "/ok.html");
         server.start();
     }
 
@@ -151,7 +156,23 @@ class InterfaceTest {
     }
 
     private void handler(String path, int status, String type, byte[] body) {
-        server.createContext(path, ex -> respond(ex, status, type, body));
+        server.createContext(path, ex -> {
+            requests.computeIfAbsent(path, k -> new java.util.concurrent.atomic.AtomicInteger()).incrementAndGet();
+            respond(ex, status, type, body);
+        });
+    }
+
+    private int requestsTo(String path) {
+        return requests.containsKey(path) ? requests.get(path).get() : 0;
+    }
+
+    private void redirect(String path, String to) {
+        server.createContext(path, ex -> {
+            requests.computeIfAbsent(path, k -> new java.util.concurrent.atomic.AtomicInteger()).incrementAndGet();
+            ex.getResponseHeaders().add("Location", "http://127.0.0.1:" + port + to);
+            ex.sendResponseHeaders(302, -1);
+            ex.close();
+        });
     }
 
     private static void respond(HttpExchange ex, int status, String type, byte[] body) throws IOException {
@@ -179,11 +200,19 @@ class InterfaceTest {
 
     private String url(String p) { return "http://127.0.0.1:" + port + p; }
 
+    /**
+     * These tests crawl a server on 127.0.0.1, which the production target policy refuses on purpose.
+     * They say so here rather than relying on the code under test being lax by default.
+     */
+    private Crawler localCrawler(long minIntervalMillis) {
+        return new Crawler("mini-search-test", minIntervalMillis, 1 << 20, 5000, UrlPolicy.ALLOW_PRIVATE);
+    }
+
     @Test
     @DisplayName("爬虫：正常页面被抓取、抽取并进入索引")
     void crawlIndexesAGoodPage() {
         Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
-        Crawler.CrawlResult r = new Crawler("mini-search-test", 0, 1 << 20, 5000).fetchAndIndex(e, url("/ok.html"));
+        Crawler.CrawlResult r = localCrawler(0).fetchAndIndex(e, url("/ok.html"));
         assertTrue(r.ok(), () -> "expected success, got " + r.reason());
         assertEquals("礼貌爬虫的三条底线", r.title());
         assertEquals(1, e.index().numDocs());
@@ -194,7 +223,7 @@ class InterfaceTest {
     @DisplayName("M4 验收：坏页面一律降级，不抛异常、不脏索引")
     void crawlReportsFailuresInsteadOfThrowing() {
         Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
-        Crawler c = new Crawler("mini-search-test", 0, 1 << 20, 5000);
+        Crawler c = localCrawler(0);
         assertEquals("HTTP 404", c.fetchAndIndex(e, url("/missing.html")).reason());
         assertEquals("HTTP 500", c.fetchAndIndex(e, url("/broken.html")).reason());
         Crawler.CrawlResult empty = c.fetchAndIndex(e, url("/empty.html"));
@@ -210,7 +239,7 @@ class InterfaceTest {
     @Test
     void robotsDisallowsAreRespected() {
         Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
-        Crawler c = new Crawler("mini-search-test", 0, 1 << 20, 5000);
+        Crawler c = localCrawler(0);
         Crawler.CrawlResult r = c.fetchAndIndex(e, url("/secret/page.html"));
         assertFalse(r.ok(), "the server publishes a robots.txt that forbids /secret");
         assertEquals("disallowed by robots.txt", r.reason());
@@ -220,21 +249,73 @@ class InterfaceTest {
     @Test
     void gbkPagesDecodeWithoutMojibake() {
         Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
-        Crawler.CrawlResult r = new Crawler("mini-search-test", 0, 1 << 20, 5000).fetchAndIndex(e, url("/gbk.html"));
+        Crawler.CrawlResult r = localCrawler(0).fetchAndIndex(e, url("/gbk.html"));
         assertTrue(r.ok(), r.reason());
         assertTrue(e.searcher().rankedIds("字符集 声明", Searcher.Mode.BM25, 5).contains(0),
                 "GBK body must be decoded, not replaced with question marks");
     }
 
     @Test
+    @DisplayName("302 会被跟随：抽取的是落地页，不是跳转壳")
+    void redirectsAreFollowed() {
+        Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        Crawler.CrawlResult r = localCrawler(0).fetchAndIndex(e, url("/moved.html"));
+        assertTrue(r.ok(), r.reason());
+        assertEquals("礼貌爬虫的三条底线", r.title(), "that title only exists on the page the redirect lands on");
+    }
+
+    @Test
     void crawlerRateLimitsPerHost() {
         Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
-        Crawler c = new Crawler("mini-search-test", 400, 1 << 20, 5000);
+        Crawler c = localCrawler(400);
         long t0 = System.nanoTime();
         c.fetchAndIndex(e, url("/ok.html"));
         c.fetchAndIndex(e, url("/charset-mismatch.html"));
         long elapsed = (System.nanoTime() - t0) / 1_000_000;
         assertTrue(elapsed >= 350, "two requests to one host must be spaced apart, took " + elapsed + "ms");
+    }
+
+    @Test
+    @DisplayName("默认策略拒绝内网目标：这个测试服务器本身就是 127.0.0.1")
+    void defaultPolicyRefusesALoopbackTarget() {
+        Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        Crawler.CrawlResult r = new Crawler("mini-search-test", 0, 1 << 20, 5000)
+                .fetchAndIndex(e, url("/ok.html"));
+        assertFalse(r.ok(), "the four-argument crawler is the production one: public addresses only");
+        assertTrue(r.reason().startsWith("refused: loopback target"), () -> "reason was " + r.reason());
+        assertEquals(0, requestsTo("/ok.html"), "a refused target must not be requested at all");
+        assertEquals(0, requestsTo("/robots.txt"), "not even robots.txt is fetched for a refused host");
+        assertEquals(0, e.index().numDocs());
+    }
+
+    @Test
+    void urlPolicyKeepsPrivateAndMetadataRangesOut() {
+        UrlPolicy p = UrlPolicy.STANDARD;
+        for (String blocked : List.of("http://127.0.0.1/x", "http://localhost:9200/x", "http://[::1]/x",
+                "http://169.254.169.254/latest/meta-data/", "http://10.0.0.5/", "http://192.168.1.1/admin",
+                "http://172.16.5.4/", "http://100.64.0.1/", "http://0.0.0.0/", "http://[fc00::1]/",
+                "http://224.0.0.5/", "file:///etc/passwd")) {
+            assertFalse(p.check(blocked).allowed(), () -> blocked + " should be refused");
+        }
+        // Literal public addresses: no DNS, so this half of the test works offline like the rest.
+        for (String ok : List.of("http://8.8.8.8/", "https://1.1.1.1/robots.txt", "http://93.184.216.34/")) {
+            assertTrue(p.check(ok).allowed(), () -> ok + " should be allowed");
+        }
+        assertTrue(UrlPolicy.ALLOW_PRIVATE.check("http://127.0.0.1:9200/x").allowed());
+        assertTrue(UrlPolicy.ALLOW_PRIVATE.check("gopher://127.0.0.1/").allowed() == false,
+                "allowing private addresses is not the same as allowing other schemes");
+    }
+
+    @Test
+    @DisplayName("收链接不许重抓：一个页面一次请求")
+    void crawlReusesThePageItAlreadyFetchedForLinkHarvesting() {
+        Engine e = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        List<Crawler.CrawlResult> rs = localCrawler(0).crawl(e, List.of(url("/ok.html")), 1, 2);
+        assertEquals(1, rs.size());
+        assertTrue(rs.get(0).ok(), rs.get(0).reason());
+        assertEquals(1, requestsTo("/ok.html"),
+                "the body parsed for indexing is the body the links come from; a second GET doubles"
+                        + " the request rate against the host and breaks the politeness promise");
     }
 
     // ------------------------------------------------------------------ mcp

@@ -6,6 +6,7 @@ import dev.jingyu.ms.api.HttpApi;
 import dev.jingyu.ms.core.Corpus;
 import dev.jingyu.ms.core.Engine;
 import dev.jingyu.ms.crawl.Crawler;
+import dev.jingyu.ms.crawl.UrlPolicy;
 import dev.jingyu.ms.eval.Bench;
 import dev.jingyu.ms.eval.EvalHarness;
 import dev.jingyu.ms.mcp.McpServer;
@@ -112,6 +113,10 @@ public final class MiniSearch {
                   --pool cls|mean  dense pooling for the pretrained encoder (default cls)
                   --no-instruct    drop the query-side instruction the Chinese BGE models expect
                   --fusion a,b,c   RRF weights for [bm25, thesaurus, dense], e.g. 1,0.5,6
+                  --allow-private  (crawl) let the crawler target loopback/private/link-local hosts
+                  --allow-private-crawls (serve) the same, for POST /api/crawl
+                                 both are off by default, so a crawl of 127.0.0.1, 169.254.169.254 or
+                                 10.x is refused with a reason instead of fetched
                   --rebuild      ignore any snapshot on disk
                   --quiet        no progress output
                 """;
@@ -119,11 +124,22 @@ public final class MiniSearch {
 
     // ------------------------------------------------------------------ commands
 
+    /**
+     * The crawler for anything that reaches the network. Which targets are allowed is a property of
+     * the process, not of one request: {@code --allow-private} and {@code --allow-private-crawls} are
+     * synonyms here so a script does not have to remember which command wants which spelling.
+     */
+    private static Crawler crawler(Map<String, String> opt) {
+        boolean allowPrivate = opt.containsKey("allow-private") || opt.containsKey("allow-private-crawls");
+        return Crawler.withPolicy(allowPrivate ? UrlPolicy.ALLOW_PRIVATE : UrlPolicy.STANDARD);
+    }
+
     private static void serve(Map<String, String> opt) throws IOException, InterruptedException {
         Engine engine = open(opt);
         int port = Integer.parseInt(opt.getOrDefault("port", "9200"));
         String host = opt.getOrDefault("host", "127.0.0.1");
-        HttpApi api = new HttpApi(engine, host, port).withCrawler(Crawler.standard());
+        boolean privateCrawls = opt.containsKey("allow-private") || opt.containsKey("allow-private-crawls");
+        HttpApi api = new HttpApi(engine, host, port).withCrawler(crawler(opt));
         api.start();
         Map<String, Object> s = engine.stats();
         System.out.printf("%n  mini-search is up  ->  http://localhost:%d/%n", api.boundPort());
@@ -133,6 +149,10 @@ public final class MiniSearch {
         if (!"127.0.0.1".equals(host) && !"localhost".equals(host) && !"::1".equals(host)) {
             System.out.printf("  ! bound to %s: reachable from other machines on this network, and the write"
                     + " endpoints (/api/index, /api/crawl) have no authentication%n", host);
+            System.out.printf("  %s%n", privateCrawls
+                    ? "  ! crawls may target loopback and private addresses (--allow-private-crawls)"
+                    : "  crawls are limited to public addresses; --allow-private-crawls lifts that, if you"
+                            + " really mean it");
         }
         System.out.println();
         Runtime.getRuntime().addShutdownHook(new Thread(api::stop));
@@ -167,7 +187,7 @@ public final class MiniSearch {
         String file = opt.getOrDefault("_", "").trim();
         List<Corpus.RawDoc> docs;
         if (file.startsWith("http://") || file.startsWith("https://")) {
-            Crawler.standard().fetchAndIndex(e, file);
+            crawler(opt).fetchAndIndex(e, file);
             System.out.println(Json.write(e.stats()));
             return;
         }
@@ -183,7 +203,7 @@ public final class MiniSearch {
         }
         e.refreshVectors();
         persist(e, opt);
-        System.out.println(Json.write(Map.of("indexed", n, "documents", e.index().numDocs())));
+        System.out.println(Json.write(Map.of("indexed", n, "documents", e.numDocs())));
     }
 
     private static void delete(Map<String, String> opt) throws IOException {
@@ -198,12 +218,12 @@ public final class MiniSearch {
         Engine e = open(opt);
         String url = opt.getOrDefault("_", "").trim();
         if (url.isEmpty()) {
-            System.err.println("usage: crawl URL [--max 20] [--depth 2]");
+            System.err.println("usage: crawl URL [--max 20] [--depth 2] [--allow-private]");
             return;
         }
         int max = Integer.parseInt(opt.getOrDefault("max", "10"));
         int depth = Integer.parseInt(opt.getOrDefault("depth", "1"));
-        List<Crawler.CrawlResult> results = Crawler.standard().crawl(e, List.of(url), max, depth);
+        List<Crawler.CrawlResult> results = crawler(opt).crawl(e, List.of(url), max, depth);
         persist(e, opt);
         List<Object> out = new ArrayList<>();
         for (Crawler.CrawlResult r : results) out.add(r.toMap());

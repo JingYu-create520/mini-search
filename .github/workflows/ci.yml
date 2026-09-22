@@ -23,6 +23,16 @@ jobs:
           mvn -B -q -DskipTests package
           java -jar target/mini-search.jar eval --corpus data/corpus --out data/eval/report.md
           cat data/eval/report.md
+      - name: The committed eval report is what this code actually produces
+        run: |
+          if ! git diff --quiet data/eval/report.md; then
+            echo "::error::data/eval/report.md is stale - the committed table differs from the one this"
+            echo "::error::build just generated. Commit the regenerated file:"
+            echo "     java -jar target/mini-search.jar eval --corpus data/corpus --out data/eval/report.md"
+            git --no-pager diff --stat data/eval/report.md
+            exit 1
+          fi
+          echo "committed report matches a fresh run"
       - name: Fail if the report drifted below the acceptance bar
         run: |
           awk -F'|' '/^\| bm25 / {gsub(/ /,"",$3); if ($3+0 < 0.90) {print "bm25 recall@5 regressed: " $3; exit 1}}' data/eval/report.md

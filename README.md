@@ -1,6 +1,6 @@
 # mini-search
 
-A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 214 KB jar with no runtime dependencies.
+A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 222 KB jar with no runtime dependencies.
 
 ```bash
 java -jar mini-search.jar          # then open http://localhost:9200
@@ -13,7 +13,7 @@ The demo corpus ships inside the jar, so it works with the network unplugged. If
 
 Every query in that recording is a real request. The page runs the tour itself at `http://localhost:9200/?tour=1`; `scripts/record-demo.sh` grabs the frames. To land on one query directly: `?q=索引落盘为什么要带校验&mode=bm25`.
 
-[中文 README](README.zh-CN.md) · [design doc](docs/PLAN.md) · [evaluation report](data/eval/report.md) · [benchmark](data/eval/bench.json)
+[中文 README](README.zh-CN.md) · [design doc](docs/PLAN.md) · [evaluation report](data/eval/report.md) · [benchmark](data/eval/bench.json) · [security](SECURITY.md) · [contributing](CONTRIBUTING.md)
 
 ---
 
@@ -47,10 +47,15 @@ With the optional local model (`scripts/fetch-model.sh`, 24 MB bge-small-zh in O
 
 Split by query type, where `semantic` queries are written so the target document **does not contain the query words** (no-model run):
 
-| | bm25 | hybrid |
-|---|---|---|
-| lexical-match queries | 0.981 / 0.983 | 0.981 / **0.986** |
-| word-mismatch queries | 0.818 / 0.739 | 0.818 / **0.751** |
+| | bm25 | semantic (thesaurus) | hybrid |
+|---|---|---|---|
+| lexical-match queries | 0.981 / 0.983 | 0.981 / 0.986 | 0.981 / 0.983 |
+| word-mismatch queries | 0.818 / 0.739 | 0.818 / 0.687 | 0.818 / **0.751** |
+
+Read the two rows together: the thesaurus is what wins on the lexical row and what loses worst on the
+word-mismatch row, and `hybrid` keeps bm25's recall while taking the nDCG gain where it matters. Fusion
+is not a free lunch — the weights `{1, 0.5, 6}` were swept for this shape, and in the with-model run
+equal weights drag hybrid to 0.927, below the 0.957 the vector list reaches on its own.
 
 Two queries miss entirely on the zero-dependency path: *"does a child's persistent fever mean a bacterial infection"* (target: a document about cold vs. flu) and *"why are coastal cities mild in winter"* (target: a document about specific heat capacity). That is a genuine synonym-knowledge gap that neither lexical matching nor a corpus-derived co-occurrence table closes. **Both come back once the local bge model is loaded — 38/38.**
 
@@ -67,15 +72,33 @@ Both reports are committed: `data/eval/report.md` and `data/eval/report-bge.md`.
 
 ## Scale — 50,000 documents
 
+One run of `bench --docs 50000`, committed as `data/eval/bench.json`. Every number below is in that
+file, stage times included:
+
 | | measured |
 |---|---|
-| inverted index build | 13.6 s (+22.5 s for dictionary mining) |
-| BM25 query latency | p50 10.3 ms · p95 35.2 ms |
-| hybrid query latency | p50 21.6 ms · p95 75.6 ms |
-| word2vec training (2 epochs, 51M updates, 30k vocab) | 140 s |
-| HNSW build (m=16, efConstruction=200) | 156 s |
+| engine build (everything under it) | 304 s = 164.3 docs/s |
+| — dictionary mining | 41.9 s |
+| — inverted index build | 15.6 s |
+| — word2vec training (2 epochs, 103M updates, 30k vocab) | 211.3 s |
+| — HNSW graph (m=16, efConstruction=200) | 14.7 s |
+| — vector layer: training + graph + tokenising | 234.4 s |
+| — thesaurus build | 12.3 s |
+| BM25 query latency | p50 15.5 ms · p95 48.9 ms |
+| hybrid query latency | p50 28.7 ms · p95 107.9 ms |
+| heap in use after the build | 1.9 GB (JVM ceiling 8 GB) |
 
-Single machine, zero dependencies, laptop, ten-millisecond queries at 50k documents. That is the entire performance promise — this is not an industrial benchmark.
+Same jar, same laptop, three runs an hour apart: 304 s / 338 s / 340 s of build, BM25 p50
+15.5 / 20.7 / 16.4 ms. Read that as "tens of milliseconds with everything in RAM, ±20%", not as a
+figure to reproduce to the decimal — the machine had other things on it and the artifact is one sample.
+
+Two things this table used to say and no longer does. "HNSW build 156 s" was the vector layer's
+*cumulative* time mislabelled; the graph itself is 14.7 s. And "index build 13.6 s" came from a run
+whose artifact said 201 s overall, which nobody noticed because the stage times only ever went to
+stderr. They are in the JSON now, so the docs cannot drift away from the measurement again.
+
+Single machine, zero dependencies, laptop. That is the entire performance promise — this is not an
+industrial benchmark.
 
 ## How many lines is each layer
 
@@ -87,15 +110,15 @@ Single machine, zero dependencies, laptop, ten-millisecond queries at 50k docume
 | `hybrid/` | 76 | RRF and weighted score fusion |
 | `vector/` | 1086 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
 | `semantic/` | 145 | distributed thesaurus (co-occurrence cosine) — the semantic model that works on small corpora |
-| `search/` | 413 | query orchestration, four modes, highlighting |
-| `crawl/` | 726 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction |
+| `search/` | 442 | query orchestration, four modes, highlighting |
+| `crawl/` | 863 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction, a target policy that refuses private addresses |
 | `api/` | 337 | routes and static assets on the JDK HTTP server |
-| `core/` | 849 | engine assembly, CRC-checked snapshot, corpus loading |
-| `eval/` | 355 | recall / precision / nDCG / MRR, scale benchmark |
+| `core/` | 973 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
+| `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 194 | MCP server over stdio JSON-RPC |
-| `util/` + CLI | 679 | JSON, varbyte, logging, commands |
-| **main** | **6,104** | 38 files |
-| tests | 1175 | 57 cases |
+| `util/` + CLI | 699 | JSON, varbyte, logging, commands |
+| **main** | **6,417** | 39 files |
+| tests | 1404 | 62 cases |
 | UI | 252 | single-file search page + index admin page |
 
 ## Architecture
@@ -191,7 +214,7 @@ The gate is calibrated, not guessed: at 50k documents the same code trains a 30k
 
 **Optional: a real pretrained model, locally.** `scripts/fetch-model.sh` pulls bge-small-zh-v1.5 as int8 ONNX (24 MB) plus ONNX Runtime from hf-mirror, which works from a mainland-China connection without a proxy; `--model models/bge-small-zh-v1.5` swaps the encoder and the token gate stops applying, because a pretrained model is precisely what makes semantics work on a small corpus. Measured: recall@5 0.934 → 0.987, and the two impossible queries come back.
 
-It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 214 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
+It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 222 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
 
 Two model-specific traps are exposed as flags because both change ranking: `--pool cls|mean` (BGE ships with CLS pooling; mean still runs and still looks plausible) and the query-side instruction prefix (`为这个句子生成表示以用于检索文章：`, which the Chinese BGE models expect on queries only). Defaults are the measured-better side of each.
 
@@ -218,11 +241,32 @@ Tests run against a local HTTP server and never touch the internet: 404, 500, a 
 - The shipped dictionary is small and crude; it works because mining compensates, which also means a new corpus can invent words nobody reviewed.
 - No coverage report: every package has tests, but I am not going to quote you a percentage.
 
+## Security
+
+The honest version of "local-first" is: unauthenticated, because it is yours. `serve` binds
+`127.0.0.1` by default, and the write endpoints (`POST`/`DELETE /api/index`, `POST /api/crawl`) have
+no accounts and no tokens — the right trade on a laptop, the wrong one on a network. Two defaults follow:
+
+- **Exposing it is your decision, not its.** `--host 0.0.0.0` prints a warning naming exactly what it
+  opens up, and the Docker image passes that flag because container loopback is unreachable from the
+  host anyway. If the port must be reachable, put something that authenticates in front of it.
+- **The crawler refuses private addresses.** Before any request leaves the process — the `robots.txt`
+  lookup included — a target is checked for scheme, resolution and every address its name resolves to:
+  loopback, `0.0.0.0/8`, link-local (where cloud metadata lives), RFC 1918, carrier-grade NAT, IPv6
+  unique-local and multicast are refused with a reason in the result instead of fetched. A public page
+  that redirects into one of those ranges is refused too, so the body is neither indexed nor readable
+  back out of `/api/search`. `--allow-private` / `--allow-private-crawls` switch this off for a whole
+  process, deliberately not for a single request.
+
+Not solved: the name-to-address check is not pinned to the connection, so DNS rebinding is still open;
+there is no TLS, no rate limiting, and the snapshot file is trusted (CRCs catch corruption, not a
+hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to report one.
+
 ## Development
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 57 cases
+mvn -B test                         # 62 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

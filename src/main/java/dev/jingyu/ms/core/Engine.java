@@ -98,6 +98,78 @@ public final class Engine {
     private dev.jingyu.ms.semantic.DistributedThesaurus thesaurus;
     private long fingerprint;
     private final Map<Integer, float[]> docVectorsById = new LinkedHashMap<>();
+    /**
+     * Wall-clock seconds for each build stage, newest run winning. Only here so that {@code bench}
+     * can put them in the committed artifact: a stage time printed to stderr once cannot be checked
+     * by anyone reading the docs later, and the seconds the docs quoted from them had gone stale.
+     */
+    private final Map<String, Double> stages = new java.util.concurrent.ConcurrentHashMap<>();
+
+    /**
+     * One lock for the whole live index: writers take the write side, a search takes the read side for
+     * the duration of the query. The index is mutated in place (a new document appends postings to the
+     * maps a running search is walking), so "readers need no lock" was never true -- it just usually
+     * looked fine. Readers still run in parallel with each other; see {@link #writing}.
+     */
+    private final java.util.concurrent.locks.ReentrantReadWriteLock indexGuard =
+            new java.util.concurrent.locks.ReentrantReadWriteLock();
+
+    /** Mutate the live index. Reentrant, so a writer may call another writer. */
+    private <T> T writing(java.util.function.Supplier<T> body) {
+        indexGuard.writeLock().lock();
+        try {
+            return body.get();
+        } finally {
+            indexGuard.writeLock().unlock();
+        }
+    }
+
+    private void writing(Runnable body) {
+        indexGuard.writeLock().lock();
+        try {
+            body.run();
+        } finally {
+            indexGuard.writeLock().unlock();
+        }
+    }
+
+    /** Read engine state that is not reached through a published {@link Searcher}: stats, a doc by id. */
+    public <T> T reading(java.util.function.Supplier<T> body) {
+        indexGuard.readLock().lock();
+        try {
+            return body.get();
+        } finally {
+            indexGuard.readLock().unlock();
+        }
+    }
+
+    /** Document count of the live index, read under the guard. */
+    public int numDocs() {
+        return reading(index::numDocs);
+    }
+
+    /** One stored document by internal id, or null. Read under the guard. */
+    public dev.jingyu.ms.index.Doc doc(int id) {
+        return reading(() -> index.doc(id));
+    }
+
+    /** One stored document by its external id, or null. Read under the guard. */
+    public dev.jingyu.ms.index.Doc docByExternalId(String externalId) {
+        return reading(() -> {
+            int id = index.find(externalId);
+            return id < 0 ? null : index.doc(id);
+        });
+    }
+
+    /** Self-guarded map, so this stays callable while the write lock is held. */
+    private void stage(String name, double seconds) {
+        stages.put(name, Math.round(seconds * 10.0) / 10.0);
+    }
+
+    /** Stage timings of the most recent build/refresh, for {@code bench} and {@code stats}. */
+    public Map<String, Double> stageSeconds() {
+        return new java.util.TreeMap<>(stages);
+    }
 
     private Engine(Options options) {
         this.options = options;
@@ -114,7 +186,7 @@ public final class Engine {
         this.analyzer = new ChineseAnalyzer(lexicon).setStopwords(options.stopwords);
         this.index = new InvertedIndex(analyzer);
         this.bm25 = new Bm25(options.k1, options.b, options.boosts);
-        this.searcher = new Searcher(index, bm25).setRrfK(options.rrfK);
+        this.searcher = new Searcher(index, bm25).setRrfK(options.rrfK).setGuard(indexGuard);
     }
 
     public static Engine empty() { return new Engine(new Options()); }
@@ -154,7 +226,7 @@ public final class Engine {
 
     /** Publish a fresh Searcher over whatever is currently built. */
     private Searcher publish() {
-        searcher = new Searcher(index, bm25).setRrfK(options.rrfK);
+        searcher = new Searcher(index, bm25).setRrfK(options.rrfK).setGuard(indexGuard);
         if (encoder != null && vectors != null) searcher.enableVectors(encoder, vectors);
         if (thesaurus != null) searcher.enableThesaurus(thesaurus);
         return searcher;
@@ -183,6 +255,10 @@ public final class Engine {
 
     /** One forward pass per document; the k-NN structure is chosen by size, as everywhere else. */
     private void encodeDocuments(dev.jingyu.ms.vector.Encoder enc) {
+        writing(() -> encodeDocumentsLocked(enc));
+    }
+
+    private void encodeDocumentsLocked(dev.jingyu.ms.vector.Encoder enc) {
         List<Doc> docs = index.allDocs();
         docs.sort(java.util.Comparator.comparingInt(Doc::id));
         boolean useHnsw = "hnsw".equalsIgnoreCase(options.knn)
@@ -202,10 +278,16 @@ public final class Engine {
 
     /** Corpus-derived thesaurus; the semantic model that works without a big training corpus. */
     public synchronized dev.jingyu.ms.semantic.DistributedThesaurus buildThesaurus() {
+        return writing(this::buildThesaurusLocked);
+    }
+
+    private dev.jingyu.ms.semantic.DistributedThesaurus buildThesaurusLocked() {
         long t0 = System.nanoTime();
         thesaurus = dev.jingyu.ms.semantic.DistributedThesaurus.build(
                 index, index.allDocs(), analyzer, 8, 2, 0.08);
-        Log.info("thesaurus: %s in %.1fs", thesaurus, Log.since(t0));
+        double tookThesaurus = Log.since(t0);
+        Log.info("thesaurus: %s in %.1fs", thesaurus, tookThesaurus);
+        stage("thesaurus", tookThesaurus);
         return thesaurus;
     }
 
@@ -228,14 +310,18 @@ public final class Engine {
                 e.minedWords.add(w.term());
                 e.lexicon.add(w.term(), w.freq());
             }
+            double tookMining = Log.since(t0);
             Log.info("term mining: %d candidates accepted from %d docs in %.1fs",
-                    found.size(), docs.size(), Log.since(t0));
+                    found.size(), docs.size(), tookMining);
+            e.stage("mining", tookMining);
         }
         e.lexicon.seal();
 
         long t1 = System.nanoTime();
         for (Corpus.RawDoc d : docs) e.addRaw(d);
-        Log.info("inverted index built: %s in %.1fs", e.index, Log.since(t1));
+        double tookIndex = Log.since(t1);
+        Log.info("inverted index built: %s in %.1fs", e.index, tookIndex);
+        e.stage("invertedIndex", tookIndex);
 
         if (options.modelPath != null && !options.modelPath.isBlank()) e.usePretrainedModel();
         else if (options.trainVectors && e.enoughTextForEmbeddings()) e.trainVectors(docs);
@@ -248,6 +334,10 @@ public final class Engine {
 
     /** (Re)train the semantic layer from whatever is currently indexed. {@code docs} is unused. */
     public void trainAndIndexVectors() {
+        writing(this::trainAndIndexVectorsLocked);
+    }
+
+    private void trainAndIndexVectorsLocked() {
         long t0 = System.nanoTime();
         List<Doc> docs = index.allDocs();
         docs.sort(java.util.Comparator.comparingInt(Doc::id));
@@ -258,10 +348,19 @@ public final class Engine {
         cfg.dim = options.dim;
         cfg.epochs = options.epochs;
         model = new EmbeddingModel(analyzer, idf, cfg);
+        long tTrain = System.nanoTime();
         model.train(new ArrayList<>(tokens.values()));
+        stage("word2vec", Log.since(tTrain));
+        long tGraph = System.nanoTime();
         buildVectorIndex(tokens);
+        stage("vectorIndex", Log.since(tGraph));
         encoder = model;
-        Log.info("vector layer ready: %s in %.1fs", vectors == null ? "off" : vectors.name(), Log.since(t0));
+        // vectorLayer is the sum of the two above plus tokenising every document; publishing all
+        // three keeps a reader from doing what a previous draft of the docs did and reading the
+        // total as "HNSW build".
+        double tookLayer = Log.since(t0);
+        Log.info("vector layer ready: %s in %.1fs", vectors == null ? "off" : vectors.name(), tookLayer);
+        stage("vectorLayer", tookLayer);
     }
 
     /** Title is doubled so a document's vector leans on what its title claims. */
@@ -300,15 +399,22 @@ public final class Engine {
     /**
      * Every mutation of the live index goes through a {@code synchronized} method on this
      * instance: the HTTP server runs a thread pool, and {@code POST /api/index},
-     * {@code DELETE /api/index} and {@code POST /api/crawl} can all arrive at once. Readers
-     * need no lock because they only ever take the {@code volatile} {@link #searcher}.
+     * {@code DELETE /api/index} and {@code POST /api/crawl} can all arrive at once.
+     *
+     * <p>{@code synchronized} keeps the writers off each other; it does nothing about readers, which
+     * is why the mutations below also take {@link #indexGuard}'s write side. A published
+     * {@link Searcher} is a stable view of which layers exist, but it points at the same
+     * {@link InvertedIndex} the writers are appending to, so "readers only touch the volatile field"
+     * was never a safety argument -- it just hid the race well most of the time.
      */
     public synchronized Doc addRaw(Corpus.RawDoc raw) {
-        Map<String, String> f = new LinkedHashMap<>();
-        f.put(Doc.TITLE, raw.title());
-        f.put(Doc.BODY, raw.body());
-        f.put(Doc.TAGS, raw.tags());
-        return index.add(raw.id(), raw.url(), f);
+        return writing(() -> {
+            Map<String, String> f = new LinkedHashMap<>();
+            f.put(Doc.TITLE, raw.title());
+            f.put(Doc.BODY, raw.body());
+            f.put(Doc.TAGS, raw.tags());
+            return index.add(raw.id(), raw.url(), f);
+        });
     }
 
     /** Index live text straight from the crawler or the API. */
@@ -316,14 +422,18 @@ public final class Engine {
         return addRaw(new Corpus.RawDoc(id, url, title, body, tags));
     }
 
-    public synchronized boolean delete(String id) { return index.deleteByExternalId(id); }
+    public synchronized boolean delete(String id) {
+        return writing(() -> index.deleteByExternalId(id));
+    }
 
     /** Rebuild the semantic layer after documents changed; cheap compared with re-mining. */
     public synchronized void refreshVectors() {
-        if (encoder != null && encoder.pretrained()) encodeDocuments(encoder);
-        else if (options.trainVectors && enoughTextForEmbeddings()) trainAndIndexVectors();
-        else buildVectorIndex(snapshotTokens());
-        publish();
+        writing(() -> {
+            if (encoder != null && encoder.pretrained()) encodeDocuments(encoder);
+            else if (options.trainVectors && enoughTextForEmbeddings()) trainAndIndexVectors();
+            else buildVectorIndex(snapshotTokens());
+            publish();
+        });
     }
 
     private Map<Integer, List<String>> snapshotTokens() {
@@ -337,6 +447,10 @@ public final class Engine {
     // ------------------------------------------------------------------ stats
 
     public Map<String, Object> stats() {
+        return reading(this::statsLocked);
+    }
+
+    private Map<String, Object> statsLocked() {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("documents", index.numDocs());
         m.put("terms", index.vocabularySize());
@@ -352,6 +466,7 @@ public final class Engine {
         m.put("knn", vectors == null ? "off" : vectors.name());
         m.put("vectors", vectors == null ? 0 : vectors.size());
         m.put("fingerprint", fingerprint);
+        m.put("stageSeconds", stageSeconds());
         m.put("analyzer", "han-maxmatch+latin+digit");
         return m;
     }
@@ -359,6 +474,15 @@ public final class Engine {
     // ------------------------------------------------------------------ snapshot
 
     public void save(Path file) throws IOException {
+        indexGuard.readLock().lock();
+        try {
+            saveLocked(file);
+        } finally {
+            indexGuard.readLock().unlock();
+        }
+    }
+
+    private void saveLocked(Path file) throws IOException {
         int[] liveIds = index.liveDocIds();
         List<Integer> kept = new ArrayList<>();
         for (int id : liveIds) if (docVectorsById.containsKey(id)) kept.add(id);

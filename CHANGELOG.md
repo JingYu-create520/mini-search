@@ -11,11 +11,48 @@ All notable changes to this project are documented here. The format follows
 the two READMEs, the launch copy and the article: per-module line counts, main-code total, file count,
 test lines, test cases, UI lines, longest single file. CI runs it as a build step.
 
-### Fixed
+### Added — the crawler stops being a request the server will make for you
+`crawl`, `index http://…` and `POST /api/crawl` now check the target before anything leaves the
+process, `robots.txt` included: non-http(s) schemes, names that do not resolve, and loopback,
+`0.0.0.0/8`, link-local, RFC 1918, carrier-grade NAT, IPv6 unique-local and multicast addresses are
+refused with a reason in the result. A redirect that lands in one of those ranges is refused as well,
+so the body cannot be indexed and read back through `/api/search`. `--allow-private` (CLI) and
+`--allow-private-crawls` (server) opt a whole process back in; they are not per-request flags on
+purpose. `SECURITY.md` writes down the threat model and what is still open (DNS rebinding, no TLS, no
+rate limiting, snapshot files are trusted input). `CONTRIBUTING.md` writes down the one rule the rest
+of this changelog keeps having to restate.
+
+### Fixed — a search and an index write could run at the same time
+`Engine`'s own comment claimed readers need no lock because they only take the published `Searcher`.
+The `Searcher` is stable; the `InvertedIndex` it points at is mutated in place by `POST /api/index`,
+`/api/crawl` and `DELETE`, so a query could walk a postings map mid-update. There is now one
+`ReentrantReadWriteLock`: writes take the write side, a query takes the read side for its duration, and
+`/api/doc`, `stats` and `save` go through it too. Searches stay parallel with each other.
+
+`ConcurrencyTest` runs 6 readers and 2 writers for 1.5 s. It is reported honestly: with the read side
+removed the test still passes here, because the Java memory model's bad outcome is not guaranteed to
+materialise on x86 in two seconds. The lock is there because the semantics should not depend on which
+machine compiles the project, and `CONTRIBUTING.md` says so rather than implying a greener test.
+
+### Fixed — the crawler fetched every page twice
+`crawl()` re-fetched each page to harvest its links after `fetchAndIndex()` had already downloaded and
+parsed it. That doubled the request rate against every host and bypassed the per-host politeness
+interval for the second one, which is the exact promise this class exists to keep. Links now come out
+of the body that was already fetched; `InterfaceTest` counts requests on the local server to keep it
+that way.
+
+### Fixed — a second pass over the claims
 - Those numbers had drifted: the READMEs advertised 6,005 main lines / 53 cases / a 213-line UI while
   the tree held 6,104 / 57 / 252, and the article still carried the pre-M8 `vector/` size.
 - The article claimed "每层都不到 800 行", which `vector/` at 1,086 lines contradicts. It now claims the
-  smaller true thing — longest single file 453 lines — and that claim is checked too.
+  smaller true thing — longest single file, currently 577 lines — and the checker enforces that too.
+- The Scale table's stage times came from a different run than the committed `bench.json`, and one of
+  them was mislabelled outright: "HNSW build 156 s" was the vector layer's *cumulative* time. `bench`
+  now writes every stage into the artifact (`word2vec`, `vectorIndex`, `vectorLayer`, …) and
+  `check-claims.sh` compares the README's Scale table against that file, so a stage name cannot be
+  attached to the wrong number again. Current run: 304 s build, 15.6 s index, 14.7 s graph.
+- Latency is quoted with the three runs that were actually measured, and "ten-millisecond queries"
+  became "tens of milliseconds" — the 10.3 ms p50 in the old artifact does not reproduce here.
 
 ## 0.1.1 — 2026-09-21
 

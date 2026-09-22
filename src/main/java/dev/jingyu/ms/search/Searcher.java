@@ -76,6 +76,29 @@ public final class Searcher {
      */
     private double[] fusionWeights = {1.0, 0.5, 6.0};
 
+    /**
+     * The lock {@link dev.jingyu.ms.core.Engine} holds while it mutates the index in place. Readers
+     * take its read side, so searches stay parallel to each other and are excluded only from writes.
+     * Null in tests and single-threaded CLI use, where nothing else touches the index.
+     */
+    private java.util.concurrent.locks.ReentrantReadWriteLock guard;
+
+    public Searcher setGuard(java.util.concurrent.locks.ReentrantReadWriteLock lock) {
+        this.guard = lock;
+        return this;
+    }
+
+    /** Run a read of the live index under the guard, if there is one. Reentrant. */
+    private <T> T reading(java.util.function.Supplier<T> body) {
+        if (guard == null) return body.get();
+        guard.readLock().lock();
+        try {
+            return body.get();
+        } finally {
+            guard.readLock().unlock();
+        }
+    }
+
     /** Corpus-derived thesaurus that powers mode=semantic. */
     public Searcher enableThesaurus(dev.jingyu.ms.semantic.DistributedThesaurus t) {
         this.thesaurus = t;
@@ -149,12 +172,12 @@ public final class Searcher {
 
     /** Ranked document ids for one mode, no hydration -- the shape the eval harness consumes. */
     public List<Integer> rankedIds(String query, Mode mode, int pool) {
-        return switch (mode) {
+        return reading(() -> switch (mode) {
             case BM25 -> lexicalRanked(query, pool);
             case VECTOR -> vectorRanked(query, pool);
             case SEMANTIC -> semanticRanked(query, pool);
             case HYBRID -> Rrf.fuse(fusionLists(query, pool), fusionWeights, rrfK, pool);
-        };
+        });
     }
 
     /** The ranked lists that take part in fusion; the weight vector is aligned with this order. */
@@ -185,6 +208,12 @@ public final class Searcher {
     // ------------------------------------------------------------------ full search
 
     public Result search(String query, Mode mode, int topK, int from, boolean phrase, boolean highlight) {
+        // One read-side acquisition for the whole query: the postings, the vector graph and the
+        // document store are all walked below, and a concurrent add mutates all three in place.
+        return reading(() -> searchLocked(query, mode, topK, from, phrase, highlight));
+    }
+
+    private Result searchLocked(String query, Mode mode, int topK, int from, boolean phrase, boolean highlight) {
         long t0 = System.nanoTime();
         List<String> terms = queryTerms(query);
         Set<String> termSet = new LinkedHashSet<>(terms);

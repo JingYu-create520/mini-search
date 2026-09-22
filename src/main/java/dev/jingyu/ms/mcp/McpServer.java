@@ -155,7 +155,7 @@ public final class McpServer {
                 engine.add(Json.str(args, "id", ""), Json.str(args, "url", ""),
                         Json.str(args, "title", ""), Json.str(args, "body", ""),
                         Json.str(args, "tags", ""));
-                yield text(Map.of("indexed", true, "documents", engine.index().numDocs()));
+                yield text(Map.of("indexed", true, "documents", engine.numDocs()));
             }
             case "stats" -> text(engine.stats());
             default -> error("unknown tool: " + name);
