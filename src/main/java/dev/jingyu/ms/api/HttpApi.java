@@ -80,12 +80,12 @@ public final class HttpApi {
                     t.setDaemon(true);
                     return t;
                 }));
-        server.createContext("/api/search", this::handleSearch);
-        server.createContext("/api/stats", this::handleStats);
-        server.createContext("/api/doc", this::handleDoc);
-        server.createContext("/api/index", this::handleIndex);
-        server.createContext("/api/crawl", this::handleCrawl);
-        server.createContext("/", this::handleStatic);
+        server.createContext("/api/search", ex -> route(ex, this::handleSearch));
+        server.createContext("/api/stats", ex -> route(ex, this::handleStats));
+        server.createContext("/api/doc", ex -> route(ex, this::handleDoc));
+        server.createContext("/api/index", ex -> route(ex, this::handleIndex));
+        server.createContext("/api/crawl", ex -> route(ex, this::handleCrawl));
+        server.createContext("/", ex -> route(ex, this::handleStatic));
         server.start();
         Log.info("HTTP API listening on http://localhost:%d", port);
     }
@@ -97,6 +97,46 @@ public final class HttpApi {
     public int port() { return port; }
 
     // ------------------------------------------------------------------ routes
+
+    /**
+     * Every request gets an answer, whatever the handler gets up to.
+     *
+     * <p>The handlers used to run bare, so a {@code RuntimeException} or {@code Error} -- a truncated
+     * body, a stray bracket, sixty thousand nested arrays blowing the stack -- propagated out of the
+     * exchange thread and the JDK server closed the socket without ever writing a status line. To a
+     * client that is indistinguishable from the server being down: {@code curl} reports status 000. A
+     * bad request now gets a 400 carrying the reason, an unexpected failure gets a 500, and the worker
+     * survives to serve the next request either way.
+     */
+    private void route(HttpExchange ex, Route handler) {
+        try {
+            handler.handle(ex);
+        } catch (IOException clientWentAway) {
+            // Nothing to answer: the read or the write failed because the peer is already gone.
+        } catch (IllegalArgumentException badInput) {
+            answer(ex, 400, Json.write(Map.of("error", "malformed request: " + reason(badInput))));
+        } catch (RuntimeException | Error failure) {
+            answer(ex, 500, Json.write(Map.of("error",
+                    failure.getClass().getSimpleName() + ": " + reason(failure))));
+        }
+    }
+
+    private interface Route { void handle(HttpExchange ex) throws IOException; }
+
+    /** The message, shortened: a parse error quotes surrounding input, and that can be a megabyte. */
+    private static String reason(Throwable t) {
+        String m = t.getMessage();
+        if (m == null) return "no message";
+        return m.length() > 200 ? m.substring(0, 200) + "…" : m;
+    }
+
+    private void answer(HttpExchange ex, int status, String json) {
+        try {
+            send(ex, status, json);
+        } catch (RuntimeException | IOException ignored) {
+            // The exchange is already spent; there is nobody left to tell.
+        }
+    }
 
     private void handleSearch(HttpExchange ex) throws IOException {
         if (!cors(ex, "GET")) return;

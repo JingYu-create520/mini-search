@@ -60,6 +60,12 @@ instead of reading it, so an unauthenticated write endpoint is not also an unbou
 `topK` and `from` are clamped rather than trusted, and `search` never materialises more than its
 candidate pool.
 
+**A bad request still gets an answer.** The hand-written JSON parser caps nesting at 96 levels — before
+that, a 120 KB body of sixty thousand open brackets produced a `StackOverflowError`, which is an `Error`
+and so walked straight past the error handling on every path. And each route is wrapped: a truncated
+body, a stray bracket or an unexpected internal failure now returns a 400/500 with the reason instead of
+closing the socket silently, which from a client looks exactly like a server that is down.
+
 ## Known residual risks
 
 These are open, not overlooked.

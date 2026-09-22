@@ -16,8 +16,23 @@ public final class Json {
 
     // ------------------------------------------------------------------ parsing
 
+    /**
+     * How deep the recursive descent will go.
+     *
+     * <p>The parser calls {@code value() -> array() -> value()} once per nesting level, so without a
+     * ceiling a 120 KB body of sixty thousand open brackets ends the parsing thread with a
+     * {@link StackOverflowError}. That is an {@link Error} and not a {@link RuntimeException}, so it
+     * slips past every path written to answer a bad request politely: the exchange dies without ever
+     * sending a status line. Before this cap that was reproducible with one curl.
+     *
+     * <p>Ninety-six is orders of magnitude past anything a document, a tool argument or a corpus line
+     * legitimately contains here -- the engine's own payloads top out around four levels.
+     */
+    public static final int MAX_DEPTH = 96;
+
     private final String src;
     private int at;
+    private int depth;
 
     private Json(String src) { this.src = src; }
 
@@ -39,15 +54,23 @@ public final class Json {
 
     private Object value() {
         if (at >= src.length()) throw err(src, at, "unexpected end of input");
-        char c = src.charAt(at);
-        return switch (c) {
-            case '{' -> object();
-            case '[' -> array();
-            case '"' -> string();
-            case 't', 'f' -> bool();
-            case 'n' -> nul();
-            default -> number();
-        };
+        if (++depth > MAX_DEPTH) {
+            depth--;
+            throw err(src, at, "nested more than " + MAX_DEPTH + " levels deep");
+        }
+        try {
+            char c = src.charAt(at);
+            return switch (c) {
+                case '{' -> object();
+                case '[' -> array();
+                case '"' -> string();
+                case 't', 'f' -> bool();
+                case 'n' -> nul();
+                default -> number();
+            };
+        } finally {
+            depth--;
+        }
     }
 
     private Map<String, Object> object() {

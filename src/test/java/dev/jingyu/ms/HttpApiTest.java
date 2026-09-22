@@ -140,6 +140,35 @@ class HttpApiTest {
     }
 
     @Test
+    @DisplayName("坏输入也要有回答，不能把连接默默掐掉")
+    void badRequestsAreAnsweredNotDropped() throws Exception {
+        Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));
+        HttpApi api = new HttpApi(engine, 0);
+        api.start();
+        try {
+            int port = api.boundPort();
+            String[] bad = {
+                    "{\"id\":\"x\",\"body\":",                                   // truncated
+                    "not json at all",                                           // not json
+                    "",                                                          // empty body
+                    "{\"id\":\"b\",\"body\":" + "[".repeat(5000) + "]".repeat(5000) + "}",
+            };
+            for (String body : bad) {
+                String r = request(port, "POST", "/api/index", body);
+                assertTrue(r.contains("\"error\""), () -> "no answer at all for ["
+                        + body.substring(0, Math.min(24, body.length())) + "...]: " + r);
+                assertTrue(r.length() < 600, () -> "the error must not echo the payload back: " + r.length());
+                assertEquals(0, engine.numDocs(), "a refused body stores nothing");
+            }
+            // And the server is still a server afterwards.
+            String ok = request(port, "POST", "/api/index", "{\"id\":\"s1\",\"title\":\"坏输入之后\",\"body\":\"仍然可写\"}");
+            assertTrue(ok.contains("\"indexed\":true"), "normal writes still work: " + ok);
+        } finally {
+            api.stop();
+        }
+    }
+
+    @Test
     @DisplayName("写接口有请求体上限")
     void oversizedWriteBodiesAreRefused() throws Exception {
         Engine engine = Engine.empty(new Engine.Options().mining(false).vectors(false));

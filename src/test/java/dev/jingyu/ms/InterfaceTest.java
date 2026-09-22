@@ -52,6 +52,20 @@ class InterfaceTest {
         assertThrows(RuntimeException.class, () -> Json.parse("nope"));
     }
 
+    @Test
+    @DisplayName("递归下降要有天花板：超深嵌套是异常，不是 StackOverflowError")
+    void jsonRefusesAbsurdNestingInsteadOfBlowingTheStack() {
+        String deep = "[".repeat(Json.MAX_DEPTH + 8) + "]".repeat(Json.MAX_DEPTH + 8);
+        // Asserting the *type* is the point: without the cap this throws StackOverflowError, an Error
+        // that every `catch (RuntimeException)` on the HTTP and MCP paths walks straight past.
+        assertThrows(IllegalArgumentException.class, () -> Json.parse(deep));
+        assertThrows(IllegalArgumentException.class,
+                () -> Json.parseObject("{\"a\":" + "{".repeat(500) + "}".repeat(500) + "}"));
+        // A depth anyone would actually post still parses.
+        Object nested = Json.parse("[".repeat(40) + "1" + "]".repeat(40));
+        assertTrue(nested instanceof List);
+    }
+
     // ------------------------------------------------------------------ extraction
 
     @Test
@@ -331,6 +345,12 @@ class InterfaceTest {
                 "notifications must not be answered");
         String listed = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}");
         assertTrue(listed.contains("\"search\"") && listed.contains("inputSchema"), listed);
+        assertFalse(listed.contains("index_url"),
+                "this server has no crawler attached, so it must not advertise a tool that only fails");
+        assertTrue(new McpServer(e).withCrawler(dev.jingyu.ms.crawl.Crawler.standard())
+                        .handle("{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/list\"}")
+                        .contains("index_url"),
+                "with a crawler attached the tool is there");
         String called = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":3,\"method\":\"tools/call\",\"params\":"
                 + "{\"name\":\"search\",\"arguments\":{\"query\":\"倒排索引\",\"topK\":3}}}");
         assertTrue(called.contains("tech-001"), "the tool must return the right document: " + called);
@@ -338,6 +358,15 @@ class InterfaceTest {
         String unknown = mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":4,\"method\":\"bogus\"}");
         assertTrue(unknown.contains("-32601"), unknown);
         assertTrue(mcp.handle("{not json").contains("-32700"));
+        // A nesting bomb must answer with an error and leave the session usable: the whole point of the
+        // parser's depth cap is that this arrives as an IllegalArgumentException, not a StackOverflowError
+        // that walks past the catch and kills the stdio loop.
+        String bomb = "{\"jsonrpc\":\"2.0\",\"id\":5,\"method\":\"tools/list\",\"params\":{\"a\":"
+                + "[".repeat(4000) + "]".repeat(4000) + "}}";
+        assertTrue(mcp.handle(bomb).contains("-32700"), "the bomb must be refused with a reply");
+        assertTrue(mcp.handle("{\"jsonrpc\":\"2.0\",\"id\":6,\"method\":\"tools/list\"}")
+                        .contains("\"result\""),
+                "and the next request must still be served");
     }
 
     // ------------------------------------------------------------------ end to end

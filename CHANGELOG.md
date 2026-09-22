@@ -41,6 +41,21 @@ interval for the second one, which is the exact promise this class exists to kee
 of the body that was already fetched; `InterfaceTest` counts requests on the local server to keep it
 that way.
 
+### Fixed — a bad request answered like a server that is down
+`POST /api/index` with a truncated JSON body returned nothing at all: `curl` reported `000`, no status
+line, because `Json.parseObject` threw out of a handler that nothing was wrapped in, and the JDK server
+just closed the socket. Same for a body of plain garbage, and for `POST /api/crawl` with no body at all
+-- which is what forgetting `-d` looks like. Every route is now wrapped: malformed input is a 400 with
+the reason, an unexpected failure is a 500, the worker survives, and the client can tell "you sent me
+junk" from "the process is gone".
+
+The parser itself was the worse half of that. It is recursive descent with no depth limit, so
+60,000 nested arrays in a 120 KB body produced a `StackOverflowError` -- an `Error`, which is why the
+`catch (RuntimeException)` in the MCP path never saw it coming and why the stdio loop was one malformed
+frame away from dying. Depth is capped at 96 levels now, which is far past anything this engine's own
+payloads reach. All four cases are asserted end to end against a live server, and the JSON test asserts
+the *exception type*, since passing on a `StackOverflowError` would have looked like a pass.
+
 ### Fixed — the HTTP surface, one pass further
 - `POST /api/index` and `POST /api/crawl` read the whole request body with `readAllBytes()`. On a
   server whose write endpoints have no authentication, that is an unbounded memory grant: a 2 GB body
