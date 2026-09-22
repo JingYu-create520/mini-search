@@ -1,6 +1,6 @@
 # mini-search
 
-A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 226 KB jar with no runtime dependencies.
+A local-first hybrid search engine for Chinese. Crawler, Chinese analyser, inverted index, BM25, word vectors, HNSW, RRF fusion, web UI — all written by hand, packaged as one 227 KB jar with no runtime dependencies.
 
 ```bash
 java -jar mini-search.jar          # then open http://localhost:9200
@@ -218,7 +218,7 @@ The gate is calibrated, not guessed: at 50k documents the same code trains a 30k
 
 **Optional: a real pretrained model, locally.** `scripts/fetch-model.sh` pulls bge-small-zh-v1.5 as int8 ONNX (24 MB) plus ONNX Runtime from hf-mirror, which works from a mainland-China connection without a proxy; `--model models/bge-small-zh-v1.5` swaps the encoder and the token gate stops applying, because a pretrained model is precisely what makes semantics work on a small corpus. Measured: recall@5 0.934 → 0.987, and the two impossible queries come back.
 
-It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 226 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
+It is not the default and it is not in the jar: ONNX Runtime is a `provided` dependency, so the base artifact stays 227 KB with zero runtime dependencies. Trading one extra `-cp` for the strongest semantic layer is a decision you should make per deployment, which is why it is a flag and not a default.
 
 Two model-specific traps are exposed as flags because both change ranking: `--pool cls|mean` (BGE ships with CLS pooling; mean still runs and still looks plausible) and the query-side instruction prefix (`为这个句子生成表示以用于检索文章：`, which the Chinese BGE models expect on queries only). Defaults are the measured-better side of each.
 

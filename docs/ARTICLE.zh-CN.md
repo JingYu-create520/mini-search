@@ -6,7 +6,7 @@
 java -jar mini-search.jar          # http://localhost:9200
 ```
 
-里面装了一份 84 篇文档的演示语料，断网也能搜。没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，也不用下载任何模型。主代码 6708 行、39 个文件，jar 226 KB。仓库在 [github.com/JingYu-create520/mini-search](https://github.com/JingYu-create520/mini-search)。
+里面装了一份 84 篇文档的演示语料，断网也能搜。没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，也不用下载任何模型。主代码 6708 行、39 个文件，jar 227 KB。仓库在 [github.com/JingYu-create520/mini-search](https://github.com/JingYu-create520/mini-search)。
 
 先说清楚为什么自己写。中文检索的教学项目大多停在"能跑"，工业引擎又重到没人读完。中间那块是空的：一个能当场演示、又能一层层讲明白的东西。只要引入 Lucene，"每层都能读懂"这句话就作废了，所以连 JSON 解析都是我写的。
 

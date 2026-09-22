@@ -98,7 +98,7 @@ over 14 items on the analysis path bought nothing; it is a `Set` now, with the d
 behaviour change: `--stopwords` measured as a wash on the bundled corpus (recall@5 identical at 0.934,
 nDCG within 0.005), which is why it stays off by default and why that is written in the code.
 
-75 tests. Jar 226 KiB; committed eval report byte-identical to before.
+75 tests. Jar 226 KiB at the time; committed eval report byte-identical to before.
 
 ## 0.1.5 — 2026-09-22
 
