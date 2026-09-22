@@ -297,6 +297,50 @@ class IndexTest {
     }
 
     @Test
+    @DisplayName("快照在真实规模上也要逐位一致：3000 篇文档、多字节变长编码")
+    void snapshotRoundTripHoldsAtScale() throws IOException {
+        // Small corpora only ever exercise single-byte varbytes and short postings. Positions past 127,
+        // delta chains across hundreds of documents and multi-byte field lengths are where a coding
+        // mistake in SnapshotStore would show up, and a snapshot that silently reorders is worse than
+        // one that fails to load.
+        List<Corpus.RawDoc> docs = new ArrayList<>();
+        for (int i = 0; i < 3000; i++) {
+            docs.add(new Corpus.RawDoc("d" + i, "u" + i, "标题" + i,
+                    "倒排索引 与 分词 在 大规模 下 也 要 逐位 一致 " + filler(i), "标签" + (i % 17)));
+        }
+        Engine.Options o = new Engine.Options().vectors(false).mining(false);
+        Engine built = Engine.build(docs, o);
+        assertTrue(built.index().avgFieldLength(1) > 30, "the bodies must be long enough to matter");
+
+        Path file = Files.createTempFile("ms-scale", ".msnap");
+        try {
+            built.save(file);
+            Engine back = Engine.restore(file, o, docs);
+            assertEquals(built.index().numDocs(), back.index().numDocs());
+            assertEquals(built.index().vocabularySize(), back.index().vocabularySize());
+            for (String q : List.of("倒排索引", "大规模 分词", "标签", "索引 一致")) {
+                assertEquals(built.searcher().rankedIds(q, Searcher.Mode.BM25, 50),
+                        back.searcher().rankedIds(q, Searcher.Mode.BM25, 50),
+                        "top-50 must survive the round trip for: " + q);
+                assertEquals(built.searcher().search(q, Searcher.Mode.BM25, 50, 0, true, false).total(),
+                        back.searcher().search(q, Searcher.Mode.BM25, 50, 0, true, false).total(),
+                        "phrase matching reads the position pool; it must agree too for: " + q);
+            }
+        } finally {
+            Files.deleteIfExists(file);
+        }
+    }
+
+    /** A body whose length and term positions vary, so the encoding sees more than one byte width. */
+    private static String filler(int i) {
+        StringBuilder sb = new StringBuilder();
+        for (int k = 0; k < 8 + (i % 23); k++) {
+            for (int r = 0; r < 1 + (k * 7 + i) % 9; r++) sb.append("填充词").append(k).append(' ');
+        }
+        return sb.toString().trim();
+    }
+
+    @Test
     void corruptedSnapshotIsDetectedNotTrusted() throws IOException {
         Engine e = Engine.build(Corpus.loadDemo(), new Engine.Options().vectors(false));
         Path file = Files.createTempFile("ms-corrupt", ".msnap");

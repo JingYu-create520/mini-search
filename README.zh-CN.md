@@ -1,6 +1,6 @@
 # mini-search
 
-本地优先的中文混合搜索引擎。爬虫、中文分词、倒排索引、BM25、词向量、HNSW、RRF 融合、Web 界面，全都自己写的，一个 225 KB 的 jar，运行时零依赖。
+本地优先的中文混合搜索引擎。爬虫、中文分词、倒排索引、BM25、词向量、HNSW、RRF 融合、Web 界面，全都自己写的，一个 226 KB 的 jar，运行时零依赖。
 
 ```bash
 java -jar mini-search.jar          # 然后打开 http://localhost:9200
@@ -102,7 +102,7 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 
 | 层 | 行数 | 职责 |
 |---|---|---|
-| `analyzer/` | 695 | 归一化、双向最大匹配、中英混排切分、统计新词挖掘（凝固度 NPMI + 左右邻接熵） |
+| `analyzer/` | 704 | 归一化、双向最大匹配、中英混排切分、统计新词挖掘（凝固度 NPMI + 左右邻接熵） |
 | `index/` | 489 | 倒排索引、变长编码 posting、位置信息、删除位图、短语合并 |
 | `ranking/` | 82 | BM25（k1/b 可调，多字段加权） |
 | `hybrid/` | 76 | RRF 与加权分数融合 |
@@ -114,9 +114,9 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `core/` | 1031 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
 | `eval/` | 358 | recall/precision/nDCG/MRR 与规模基准 |
 | `mcp/` | 200 | stdio JSON-RPC 的 MCP server |
-| `util/` + 入口 | 725 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6,601** | 39 个文件 |
-| 测试 | 1616 | 70 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| `util/` + 入口 | 761 | JSON、变长编码、日志、CLI |
+| **主代码合计** | **6,646** | 39 个文件 |
+| 测试 | 1744 | 75 个用例（4 个需要本地模型，缺模型时自动跳过） |
 | 前端 | 255 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
@@ -236,7 +236,7 @@ IDF 的分母是**跨字段去重后的文档数**。这一度写成了"字段�
 
 **可选：本地预训练模型。** `scripts/fetch-model.sh` 从 hf-mirror 拉 bge-small-zh-v1.5 的 int8 ONNX（24 MB）和 ONNX Runtime，`--model models/bge-small-zh-v1.5` 就换上这个编码器——门槛自动失效，因为预训练模型正是小语料唯一能拿到语义的办法。实测 recall@5 从 0.934 涨到 0.987，那两条谁都打不中的查询都回来了。
 
-它**不是默认**，也**不进 jar**：ONNX Runtime 在 pom 里是 `provided`，基础 jar 仍然 225 KB、零运行时依赖。想要真语义就多一个 `java -cp "mini-search.jar;libs/onnxruntime.jar"` 的写法，代价摆在这儿，你自己选。
+它**不是默认**，也**不进 jar**：ONNX Runtime 在 pom 里是 `provided`，基础 jar 仍然 226 KB、零运行时依赖。想要真语义就多一个 `java -cp "mini-search.jar;libs/onnxruntime.jar"` 的写法，代价摆在这儿，你自己选。
 
 顺带两个模型相关的坑做成了开关：`--pool cls|mean`（BGE 是 CLS 池化，用 mean 也能跑，但排序会悄悄变差）和查询侧指令前缀（中文 BGE 只在 query 上加"为这个句子生成表示以用于检索文章："，加到文档上或两边都不加都会掉召回）。默认值都是实测更好的那个。
 
@@ -261,7 +261,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 - 演示语料是本项目手写的 84 篇 CC0 短文（`data/corpus/`），**不是**维基抓取。手写让许可证干净，代价是语料小，而这正好暴露了上面"小语料学不出嵌入"的事实。
 - 同源词典在**合成语料上会退化**：5 万篇 bench 文档是同一批句子重组出来的，几乎所有词都互相共现，共现余弦因此失去区分度（该场景只挖出 6 个词条）。它需要真实文档那种"每篇只用一小部分词汇"的稀疏性——真实抓取或真实笔记都没问题。
 - 同义词鸿沟真实存在：零依赖那一路点名的 2 条查询就是，装上本地 bge 才补得回来。
-- 预训练模型是**可选外挂**：24 MB 权重 + 93 MB ONNX Runtime 都不进 jar、不进 git，`scripts/fetch-model.sh` 才下载。所以"零依赖开箱即用"和"最强语义"你只能同时要两步操作，不能同时要一个 225 KB 的 jar。
+- 预训练模型是**可选外挂**：24 MB 权重 + 93 MB ONNX Runtime 都不进 jar、不进 git，`scripts/fetch-model.sh` 才下载。所以"零依赖开箱即用"和"最强语义"你只能同时要两步操作，不能同时要一个 226 KB 的 jar。
 - 前端是手写的单文件页面，**不是** v1.0 里写的 Vue 3 + Vite。这是有意的取舍：构建链里不出现 npm，"单 jar + 零工具链"这句话才成立，而搜索页只需要 `fetch` 加一段模板。想换真前端，`api/StaticFiles` 已经优先读 `web/dist`，放进目录就能顶掉内置页。
 - 快照是单文件全量写，文档数到几十万时启动加载会明显变慢。
 - 内置词典小而糙。它靠"词典 + 语料挖掘"两条腿工作，换个领域的语料就会长出让你自己都认不出的词——这是特性也是风险。
@@ -294,7 +294,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 70 个用例
+mvn -B test                                  # 75 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000

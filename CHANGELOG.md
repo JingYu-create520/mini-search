@@ -4,6 +4,38 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.6 — 2026-09-22
+
+### Fixed — a switch in front of your text used to eat it
+The argument parser decided "does this flag take a value?" by checking whether another token follows,
+so every boolean switch placed before the text swallowed it. `search --stopwords 中文分词` parsed the
+query as the value of `--stopwords`, found no text, and answered with a usage message — and so did
+`analyze --quiet "文本"`, `search --no-vectors --rebuild 词`, anything natural. Switches are now
+declared, and both orders parse to the same thing.
+
+A misspelled option is also named instead of ignored: `serve --datadir x` used to start serving the
+default data directory as if nothing happened, which is the kind of silence that turns into someone
+asking where their index went.
+
+`CliArgsTest` covers the three, including a check that `--help` and the parser agree on the flag list.
+That last one earned its keep immediately: it found `--force-vectors`, which the startup message tells
+you to pass and the help text had never mentioned.
+
+### Added — the snapshot checked at a size that exercises the encoding
+`snapshotRoundTripHoldsAtScale` saves and restores 3,000 documents with varying lengths and compares
+top-50 rankings and phrase-match totals. The existing round-trip test ran on 84 documents, where every
+varbyte and every delta fits in one byte; positions past 127 and multi-byte field lengths were
+untested. Nothing was broken — the assertion is now there for the next change to `SnapshotStore`,
+which is the file where a silent reordering would hurt most.
+
+### Changed — stopwords are a set
+`STOPWORDS` was a `List` consulted per emitted token, with a duplicate entry in it. `List.contains`
+over 14 items on the analysis path bought nothing; it is a `Set` now, with the duplicate gone. No
+behaviour change: `--stopwords` measured as a wash on the bundled corpus (recall@5 identical at 0.934,
+nDCG within 0.005), which is why it stays off by default and why that is written in the code.
+
+75 tests. Jar 226 KiB; committed eval report byte-identical to before.
+
 ## 0.1.5 — 2026-09-22
 
 ### Fixed — deleting a document used to change the ranking of the others

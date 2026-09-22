@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Command line entry point. Every command opens the same {@link Engine} the HTTP server and the MCP
@@ -41,13 +42,21 @@ import java.util.Map;
  */
 public final class MiniSearch {
 
-    public static void main(String[] args) throws Exception {        if (args.length > 0 && (args[0].equals("--help") || args[0].equals("-h"))) {
+    public static void main(String[] args) throws Exception {
+        if (args.length > 0 && (args[0].equals("--help") || args[0].equals("-h"))) {
             System.out.println(usage());
             return;
         }
         String cmd = args.length == 0 ? "serve" : args[0];
         Map<String, String> opt = parseArgs(args, cmd.startsWith("-") ? 0 : 1);
         if (cmd.startsWith("-")) opt.putAll(parseArgs(args, 0));
+        List<String> typo = unknown(opt);
+        if (!typo.isEmpty()) {
+            // Silence here is the expensive part: a misspelled --dat makes the next command run against
+            // the default data directory, which is not where the caller thinks their index lives.
+            System.err.println("mini-search: unknown option " + String.join(", ", typo)
+                    + " -- ignored. Run `--help` for the list.");
+        }
 
         switch (cmd) {
             case "serve", "-s" -> serve(opt);
@@ -76,7 +85,8 @@ public final class MiniSearch {
         }
     }
 
-    private static String usage() {
+    /** Package-private so the CLI test can keep the help text and the parser agreeing. */
+    static String usage() {
         return """
                 mini-search - local-first hybrid search engine for Chinese, single jar, no dependencies
 
@@ -106,6 +116,7 @@ public final class MiniSearch {
                   --mode M       bm25 | vector | hybrid              (default: hybrid)
                   --topK N       results to return                   (default: 10)
                   --no-vectors   skip training, BM25 only (fastest start)
+                  --force-vectors  train anyway below the 400k-token data gate
                   --no-mining    skip statistical new-word discovery
                   --knn auto|hnsw|brute
                   --epochs N     word2vec epochs
@@ -356,7 +367,32 @@ public final class MiniSearch {
 
     // ------------------------------------------------------------------ args
 
-    private static Map<String, String> parseArgs(String[] args, int from) {
+    /**
+     * Flags that are switches rather than options. They take no argument, so the parser must not let
+     * them eat the token after them: {@code search --stopwords 中文分词} used to swallow the query as
+     * the value of {@code --stopwords} and answer with a usage message. Every flag in usage() that has
+     * no value placeholder belongs here; {@code MiniSearchCliTest} checks the two lists agree.
+     */
+    static final Set<String> SWITCHES = Set.of("quiet", "stopwords", "no-vectors", "no-mining",
+            "force-vectors", "rebuild", "no-instruct", "allow-private", "allow-private-crawls");
+
+    /** Everything the parser understands, so a typo can be named instead of silently ignored. */
+    static final Set<String> OPTIONS = java.util.stream.Stream.concat(SWITCHES.stream(),
+            java.util.stream.Stream.of("data", "corpus", "port", "host", "mode", "topK", "from", "knn",
+                    "epochs", "dim", "dict", "model", "pool", "fusion", "max", "depth", "max-pieces",
+                    "out", "seed", "docs", "help"))
+            .collect(java.util.stream.Collectors.toUnmodifiableSet());
+
+    static List<String> unknown(Map<String, String> opt) {
+        List<String> bad = new ArrayList<>();
+        for (String key : opt.keySet()) {
+            if (!key.equals("_") && !OPTIONS.contains(key)) bad.add("--" + key);
+        }
+        return bad;
+    }
+
+    /** Package-private for the CLI test; {@link #SWITCHES} is the reason the two need to be read together. */
+    static Map<String, String> parseArgs(String[] args, int from) {
         Map<String, String> out = new LinkedHashMap<>();
         List<String> positional = new ArrayList<>();
         for (int i = from; i < args.length; i++) {
@@ -366,7 +402,7 @@ public final class MiniSearch {
                 int eq = key.indexOf('=');
                 if (eq >= 0) {
                     out.put(key.substring(0, eq), key.substring(eq + 1));
-                } else if (i + 1 < args.length && !args[i + 1].startsWith("--")) {
+                } else if (!SWITCHES.contains(key) && i + 1 < args.length && !args[i + 1].startsWith("--")) {
                     out.put(key, args[++i]);
                 } else {
                     out.put(key, "");
