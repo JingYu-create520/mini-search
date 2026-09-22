@@ -62,6 +62,7 @@ public final class MiniSearch {
             case "serve", "-s" -> serve(opt);
             case "search" -> search(opt);
             case "index" -> index(opt);
+            case "dump" -> dump(opt);
             case "delete" -> delete(opt);
             case "crawl" -> crawl(opt);
             case "eval" -> EvalHarness.run(open(opt, true), opt);
@@ -95,7 +96,8 @@ public final class MiniSearch {
                 commands
                   serve        start the web UI + HTTP API (default command)
                   search TEXT  one-shot query, prints ranked hits
-                  index FILE   index a JSONL file ({id,title,body,url,tags})
+                  index FILE   index a JSONL file ({id,title,body,url,tags}) or one URL
+                  dump         write the live index back out as JSONL (--out FILE, default stdout)
                   delete ID    remove a document by its id
                   crawl URL    fetch and index pages, breadth first
                   eval         run the labelled query set, print recall@5 / nDCG@5 per mode
@@ -132,6 +134,10 @@ public final class MiniSearch {
                                  both are off by default, so a crawl of 127.0.0.1, 169.254.169.254 or
                                  10.x is refused with a reason instead of fetched
                   --rebuild      ignore any snapshot on disk
+                  --out FILE     where eval / bench / dump write their output
+                  --max N        crawl: documents to fetch          --depth N   crawl: link hops
+                  --docs N       bench: synthetic document count    --seed N    bench: RNG seed
+                  --from N       search: result offset for paging   --dim N     embedding size
                   --quiet        no progress output
                 """;
     }
@@ -194,6 +200,41 @@ public final class MiniSearch {
             out.add(m);
         }
         System.out.println(Json.write(out));
+    }
+
+    /**
+     * Write the live index back out as JSONL -- one object per document, the same shape
+     * {@code --corpus} reads.
+     *
+     * <p>Why this exists: new-word mining happens when an engine is built, not when a document is
+     * appended, so anything that arrived later ({@code crawl}, {@code POST /api/index}) was cut with
+     * the dictionary that happened to exist at the time. That is fine for one-off notes and wrong for
+     * "I just crawled three hundred pages of my own domain". {@code dump} plus {@code --corpus} is the
+     * way out of that without pretending a running index can be re-tokenised for free.
+     */
+    private static void dump(Map<String, String> opt) throws IOException {
+        Engine e = open(opt);
+        StringBuilder sb = new StringBuilder();
+        int n = 0;
+        for (var d : e.index().allDocs()) {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", d.externalId());
+            m.put("url", d.url());
+            m.put("title", d.field(dev.jingyu.ms.index.Doc.TITLE));
+            m.put("body", d.field(dev.jingyu.ms.index.Doc.BODY));
+            m.put("tags", d.field(dev.jingyu.ms.index.Doc.TAGS));
+            sb.append(Json.write(m)).append('\n');
+            n++;
+        }
+        String to = opt.getOrDefault("out", "").trim();
+        if (to.isEmpty()) {
+            System.out.print(sb);
+            return;
+        }
+        Path out = Path.of(to);
+        if (out.getParent() != null) Files.createDirectories(out.getParent());
+        Files.writeString(out, sb.toString(), StandardCharsets.UTF_8);
+        Log.info("dumped %d documents to %s", n, out);
     }
 
     private static void index(Map<String, String> opt) throws IOException {
@@ -371,7 +412,7 @@ public final class MiniSearch {
      * Flags that are switches rather than options. They take no argument, so the parser must not let
      * them eat the token after them: {@code search --stopwords 中文分词} used to swallow the query as
      * the value of {@code --stopwords} and answer with a usage message. Every flag in usage() that has
-     * no value placeholder belongs here; {@code MiniSearchCliTest} checks the two lists agree.
+     * no value placeholder belongs here; {@code CliArgsTest} checks the two lists agree.
      */
     static final Set<String> SWITCHES = Set.of("quiet", "stopwords", "no-vectors", "no-mining",
             "force-vectors", "rebuild", "no-instruct", "allow-private", "allow-private-crawls");

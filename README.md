@@ -116,9 +116,9 @@ industrial benchmark.
 | `core/` | 1031 | engine assembly, CRC-checked snapshot, corpus loading, the read/write guard |
 | `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 200 | MCP server over stdio JSON-RPC |
-| `util/` + CLI | 761 | JSON, varbyte, logging, commands |
-| **main** | **6,646** | 39 files |
-| tests | 1744 | 75 cases |
+| `util/` + CLI | 802 | JSON, varbyte, logging, commands |
+| **main** | **6,687** | 39 files |
+| tests | 1767 | 76 cases |
 | UI | 255 | single-file search page + index admin page |
 
 ## Architecture
@@ -243,6 +243,7 @@ Tests run against a local HTTP server and never touch the internet: 404, 500, a 
 - The UI is a hand-written single file, not Vue 3 + Vite as the original design doc specified. That was a deliberate trade: no npm in the build path keeps "one jar, zero toolchain" true, and the search page only needs `fetch` plus a template. Swapping in a real frontend is a `web/` directory away — `api/StaticFiles` already prefers `web/dist` when it exists.
 - Startup loads the whole snapshot; it will get noticeably slower somewhere in the hundreds of thousands of documents.
 - The shipped dictionary is small and crude; it works because mining compensates, which also means a new corpus can invent words nobody reviewed.
+- Mining runs when an engine is **built**, not when a document is appended. So pages you crawl or `POST /api/index` later are cut with the dictionary that existed at the time, and a domain term that appears only in crawled text stays split into characters — still findable, but as loose character matches rather than as the word you typed. `dump` then rebuild re-runs mining over everything you have collected (`mini-search dump --out all.jsonl`, point `--corpus` at the result); that discovers a term once it recurs often enough to be evidence — measured here: 12 occurrences across 6 documents mined as one word, 3 occurrences across 3 documents did not. For a term you know matters, `--dict` is the deterministic route, and it now travels with the snapshot.
 - No coverage report: every package has tests, but I am not going to quote you a percentage.
 
 ## Security
@@ -276,7 +277,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 75 cases
+mvn -B test                         # 76 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

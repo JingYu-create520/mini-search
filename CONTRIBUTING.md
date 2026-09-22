@@ -27,7 +27,7 @@ java -cp target/classes dev.jingyu.ms.MiniSearch eval
 Maven is only needed for the test suite (JUnit 5) and the shaded jar:
 
 ```bash
-mvn -B test                           # 75 cases, no network
+mvn -B test                           # 76 cases, no network
 mvn -B -DskipTests package            # target/mini-search.jar
 bash scripts/check-claims.sh          # every advertised count vs. the tree
 scripts/regold.sh                     # only after an intentional analyser change

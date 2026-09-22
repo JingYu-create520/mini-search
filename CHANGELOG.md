@@ -4,6 +4,40 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.7 — 2026-09-22
+
+### Added — `dump`, and the sentence the README was missing
+New-word mining happens when an engine is **built**, not when a document is appended. Content that
+arrives later -- `crawl`, `POST /api/index`, the MCP `index_text` tool -- is tokenized with whatever
+dictionary existed at that moment, so a domain term that only appears in crawled text stays cut into
+characters: findable, but as loose character matches rather than as the word you typed.
+
+Nothing in this repository said so, which is a documentation defect of the kind this release series
+keeps finding. It is stated now, in both READMEs, with the measurement attached instead of a promise:
+rebuilding over a corpus where the term occurred 12 times across 6 documents mined it as one word;
+3 occurrences across 3 documents did not. `--dict` remains the deterministic route for a term you know
+matters, and since 0.1.3 it travels with the snapshot.
+
+The missing piece was that crawled content had no way *back* into a corpus -- the documents live in a
+binary snapshot, and the only rebuild path reads JSONL directories. `dump` closes that gap
+(`dump [--out FILE]`, one object per document, the exact shape `--corpus` reads), so the workflow is:
+crawl or index as much as you like, `dump`, then `--corpus` at what you dumped.
+
+### Fixed — an assertion that allowed the bug it was checking for
+`demoCorpusIsBundledForTheJar` asserted `distinct ids >= size - 1`, which permits one collision. Two
+documents sharing an id overwrite each other silently at index time, so the check should be exact --
+and it is now, with the corpus verified to pass.
+
+### Verified, not reasoned
+The `javascript:` link refusal added in 0.1.4 was only argued for before. It has now been exercised in
+a real browser against a running server: a document indexed through the API with
+`url: "javascript:alert(document.domain)"` renders as plain text with no anchor, and a sibling document
+with an `https://` url renders as a link. Also verified on this commit: `dump` round-trips a document
+added at runtime back into parseable JSONL (`InterfaceTest.dumpExportsRuntimeAddsAsRebuildableCorpus`,
+the first test to drive `MiniSearch.main` end to end), and the analyzer's `--stopwords` path.
+
+76 tests.
+
 ## 0.1.6 — 2026-09-22
 
 ### Fixed — a switch in front of your text used to eat it

@@ -431,7 +431,30 @@ class InterfaceTest {
         List<Corpus.RawDoc> docs = Corpus.loadDemo();
         assertEquals(84, docs.size(), "the demo corpus shipped in the jar");
         assertTrue(docs.stream().allMatch(d -> !d.body().isBlank()));
-        assertTrue(docs.stream().map(Corpus.RawDoc::id).distinct().count() >= docs.size() - 1,
-                "ids must be unique or updates will silently collide");
+        assertEquals(docs.size(), docs.stream().map(Corpus.RawDoc::id).distinct().count(),
+                "two documents sharing an id would silently overwrite each other on index");
+    }
+
+    @Test
+    @DisplayName("dump 导得出来运行时写进去的东西：index → dump → 再解析回 RawDoc")
+    void dumpExportsRuntimeAddsAsRebuildableCorpus(@org.junit.jupiter.api.io.TempDir Path tmp) throws Exception {
+        Path incoming = tmp.resolve("in.jsonl");
+        Files.writeString(incoming, "{\"id\":\"added\",\"title\":\"运行时新增\","
+                + "\"body\":\"这条走的是 POST /api/index 那条路径\"}\n");
+        Path data = tmp.resolve("data");
+        Files.createDirectories(data);
+
+        MiniSearch.main(new String[]{"index", incoming.toString(), "--data", data.toString(),
+                "--no-vectors", "--quiet"});
+        Path out = tmp.resolve("all.jsonl");
+        MiniSearch.main(new String[]{"dump", "--data", data.toString(), "--out", out.toString(),
+                "--no-vectors", "--quiet"});
+
+        List<Corpus.RawDoc> back = Corpus.parseJsonl(Files.readString(out, StandardCharsets.UTF_8), "dump");
+        assertEquals(85, back.size(), "the bundled 84 plus the one added at runtime");
+        Corpus.RawDoc added = back.stream().filter(d -> d.id().equals("added")).findFirst()
+                .orElseThrow(() -> new AssertionError("a document indexed after the build must be exported"));
+        assertEquals("运行时新增", added.title());
+        assertTrue(added.body().contains("POST /api/index"), "bodies round-trip verbatim");
     }
 }

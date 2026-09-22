@@ -114,9 +114,9 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `core/` | 1031 | 引擎装配、快照持久化、语料装载、读写互斥的锁 |
 | `eval/` | 358 | recall/precision/nDCG/MRR 与规模基准 |
 | `mcp/` | 200 | stdio JSON-RPC 的 MCP server |
-| `util/` + 入口 | 761 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6,646** | 39 个文件 |
-| 测试 | 1744 | 75 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| `util/` + 入口 | 802 | JSON、变长编码、日志、CLI |
+| **主代码合计** | **6,687** | 39 个文件 |
+| 测试 | 1767 | 76 个用例（4 个需要本地模型，缺模型时自动跳过） |
 | 前端 | 255 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
@@ -265,6 +265,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 - 前端是手写的单文件页面，**不是** v1.0 里写的 Vue 3 + Vite。这是有意的取舍：构建链里不出现 npm，"单 jar + 零工具链"这句话才成立，而搜索页只需要 `fetch` 加一段模板。想换真前端，`api/StaticFiles` 已经优先读 `web/dist`，放进目录就能顶掉内置页。
 - 快照是单文件全量写，文档数到几十万时启动加载会明显变慢。
 - 内置词典小而糙。它靠"词典 + 语料挖掘"两条腿工作，换个领域的语料就会长出让你自己都认不出的词——这是特性也是风险。
+- 挖掘只发生在**引擎构建的那一刻**，不会因为你后来追加文档而重跑。所以 `crawl` 或 `POST /api/index` 进来的内容，是按当时的词典切的：一个只出现在抓取文本里的领域词会被切成单字，搜得到，但是按字符松散命中的，不是按你输入的那个词。想让它变成词，就 `mini-search dump --out all.jsonl` 把现有索引导成 JSONL，再用 `--corpus` 指向它重建一次——前提是这个词重复得够多：实测 6 篇文档里出现 12 次能被挖出来，3 篇里出现 3 次挖不出来。你确定重要的词，直接用 `--dict` 更靠得住，而且它现在会跟着快照一起恢复。
 - 没有测试覆盖率报告：结构上每个包都有对应用例，但不给你看那个百分比。
 
 ## 安全
@@ -294,7 +295,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 75 个用例
+mvn -B test                                  # 76 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000
