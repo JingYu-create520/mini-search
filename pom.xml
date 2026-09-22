@@ -6,7 +6,7 @@
 
   <groupId>dev.jingyu</groupId>
   <artifactId>mini-search</artifactId>
-  <version>0.1.4</version>
+  <version>0.1.5</version>
   <packaging>jar</packaging>
 
   <name>mini-search</name>

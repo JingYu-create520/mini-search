@@ -82,6 +82,12 @@ if [ -f "$ARTICLE" ]; then
   check "launch cases" "$(grep -oE '[0-9]+ 个测试' docs/LAUNCH.md | grep -oE '[0-9]+' | head -1)" "$CASES"
   if [ -f CONTRIBUTING.md ]; then
     check "contributing cases" "$(grep -oE 'mvn -B test[^#]*#[^0-9]*[0-9]+' CONTRIBUTING.md | head -1 | grep -oE '[0-9]+$')" "$CASES"
+    # CONTRIBUTING states the size of the file it is willing to let be big, and of the biggest
+    # package. Both are the kind of sentence that goes stale in the very pass that grows the code.
+    check "contributing engine" "$(grep -oE 'currently [0-9]+ lines' CONTRIBUTING.md | grep -oE '[0-9]+')" \
+      "$(wc -l < src/main/java/dev/jingyu/ms/core/Engine.java | tr -d ' ')"
+    check "contributing vector" "$(grep -oE 'at [0-9],[0-9]{3} lines' CONTRIBUTING.md | head -1 | grep -oE '[0-9],[0-9]{3}' | tr -d ,)" \
+      "$(module vector)"
   fi
 fi
 

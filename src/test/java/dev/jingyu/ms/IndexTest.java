@@ -52,6 +52,34 @@ class IndexTest {
     }
 
     @Test
+    @DisplayName("删除要删干净：平均文档长度和打分都不能留下被删文档的痕迹")
+    void deletionLeavesNoStatisticalTrace() {
+        Map<String, String> a = fields("倒排索引", "索引 让 检索 变快");
+        Map<String, String> b = fields("向量检索", "向量 的 相似 度 计算");
+        Map<String, String> big = fields("长文档", "无关 内容 ".repeat(60));
+
+        InvertedIndex plain = fresh();
+        plain.add("a", "", a);
+        plain.add("b", "", b);
+
+        InvertedIndex tombstoned = fresh();
+        tombstoned.add("a", "", a);
+        tombstoned.add("b", "", b);
+        tombstoned.add("c", "", big);
+        assertTrue(tombstoned.delete(2), "the long document is the one being removed");
+
+        for (int f = 0; f < InvertedIndex.FIELDS.size(); f++) {
+            String name = InvertedIndex.FIELDS.get(f);
+            assertEquals(plain.avgFieldLength(f), tombstoned.avgFieldLength(f), 1e-9,
+                    "avg length of " + name + " must forget the deleted document, not just stop"
+                            + " counting it in the denominator");
+        }
+        Bm25 bm25 = new Bm25();
+        assertEquals(bm25.score(plain, List.of("索引")), bm25.score(tombstoned, List.of("索引")),
+                "deleting an unrelated document must not re-weight the survivors");
+    }
+
+    @Test
     void deleteHidesADocumentWithoutReindexing() {
         InvertedIndex idx = fresh();
         idx.add("a", "", fields("标题一", "内容里有索引这个词"));

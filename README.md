@@ -105,7 +105,7 @@ industrial benchmark.
 | layer | lines | what lives there |
 |---|---|---|
 | `analyzer/` | 695 | normalisation, bidirectional maximum matching, mixed CN/EN cutting, statistical new-word mining (NPMI cohesion + branch entropy) |
-| `index/` | 479 | inverted index, varbyte postings, positions, delete bitmap, phrase merge |
+| `index/` | 489 | inverted index, varbyte postings, positions, delete bitmap, phrase merge |
 | `ranking/` | 82 | BM25 with tunable k1/b and per-field boosts |
 | `hybrid/` | 76 | RRF and weighted score fusion |
 | `vector/` | 1086 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
@@ -117,8 +117,8 @@ industrial benchmark.
 | `eval/` | 358 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 200 | MCP server over stdio JSON-RPC |
 | `util/` + CLI | 725 | JSON, varbyte, logging, commands |
-| **main** | **6,591** | 39 files |
-| tests | 1588 | 69 cases |
+| **main** | **6,601** | 39 files |
+| tests | 1616 | 70 cases |
 | UI | 255 | single-file search page + index admin page |
 
 ## Architecture
@@ -276,7 +276,7 @@ hostile author). [SECURITY.md](SECURITY.md) states the residual risks and how to
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 69 cases
+mvn -B test                         # 70 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 scripts/check-claims.sh             # verify the README's self-referential numbers

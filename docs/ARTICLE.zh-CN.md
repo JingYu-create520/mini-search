@@ -1,4 +1,4 @@
-# 我从零写了一个能搜中文的搜索引擎，主代码 6591 行，零依赖
+# 我从零写了一个能搜中文的搜索引擎，主代码 6601 行，零依赖
 
 用法就一行：
 
@@ -6,7 +6,7 @@
 java -jar mini-search.jar          # http://localhost:9200
 ```
 
-里面装了一份 84 篇文档的演示语料，断网也能搜。没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，也不用下载任何模型。主代码 6591 行、39 个文件，jar 225 KB。仓库在 [github.com/JingYu-create520/mini-search](https://github.com/JingYu-create520/mini-search)。
+里面装了一份 84 篇文档的演示语料，断网也能搜。没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，也不用下载任何模型。主代码 6601 行、39 个文件，jar 225 KB。仓库在 [github.com/JingYu-create520/mini-search](https://github.com/JingYu-create520/mini-search)。
 
 先说清楚为什么自己写。中文检索的教学项目大多停在"能跑"，工业引擎又重到没人读完。中间那块是空的：一个能当场演示、又能一层层讲明白的东西。只要引入 Lucene，"每层都能读懂"这句话就作废了，所以连 JSON 解析都是我写的。
 
@@ -157,7 +157,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```
 analyzer/  695  归一化、双向最大匹配、统计新词挖掘
-index/     479  term -> (docs + positions)、变长编码、删除位图
+index/     489  term -> (docs + positions)、变长编码、删除位图
 ranking/    82  BM25
 semantic/  145  分布式同源词典
 vector/   1086  SGNS 词向量、暴力 KNN、HNSW、WordPiece、可选 ONNX

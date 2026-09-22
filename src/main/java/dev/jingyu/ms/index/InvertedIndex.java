@@ -105,6 +105,16 @@ public final class InvertedIndex {
         documents.remove(id);
         byExternalId.remove(d.externalId());
         live--;
+        // The average document length is the other half of BM25's normalisation, and it is
+        // {@code fieldTokens / live}: subtracting one side without the other inflated the mean by
+        // exactly the deleted documents, quietly re-weighting every search afterwards. Same family
+        // as the IDF bug the article talks about -- plausible output, wrong ranking.
+        for (int f = 0; f < fieldTokens.length; f++) {
+            if (id < fieldLen[f].length) {
+                fieldTokens[f] -= fieldLen[f][id];
+                fieldLen[f][id] = 0;
+            }
+        }
         return true;
     }
 

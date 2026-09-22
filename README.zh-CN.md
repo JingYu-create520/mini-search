@@ -103,7 +103,7 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | 层 | 行数 | 职责 |
 |---|---|---|
 | `analyzer/` | 695 | 归一化、双向最大匹配、中英混排切分、统计新词挖掘（凝固度 NPMI + 左右邻接熵） |
-| `index/` | 479 | 倒排索引、变长编码 posting、位置信息、删除位图、短语合并 |
+| `index/` | 489 | 倒排索引、变长编码 posting、位置信息、删除位图、短语合并 |
 | `ranking/` | 82 | BM25（k1/b 可调，多字段加权） |
 | `hybrid/` | 76 | RRF 与加权分数融合 |
 | `vector/` | 1086 | 语料自训词向量(SGNS)、暴力 KNN、HNSW、WordPiece 分词器、可选 ONNX/bge 编码器 |
@@ -115,8 +115,8 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `eval/` | 358 | recall/precision/nDCG/MRR 与规模基准 |
 | `mcp/` | 200 | stdio JSON-RPC 的 MCP server |
 | `util/` + 入口 | 725 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6,591** | 39 个文件 |
-| 测试 | 1588 | 69 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| **主代码合计** | **6,601** | 39 个文件 |
+| 测试 | 1616 | 70 个用例（4 个需要本地模型，缺模型时自动跳过） |
 | 前端 | 255 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
@@ -294,7 +294,7 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 69 个用例
+mvn -B test                                  # 70 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000

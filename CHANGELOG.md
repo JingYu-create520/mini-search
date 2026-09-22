@@ -4,6 +4,30 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.1.5 — 2026-09-22
+
+### Fixed — deleting a document used to change the ranking of the others
+`InvertedIndex.delete()` moved the document out of the numerator's world but left its tokens in
+`fieldTokens`, while `avgFieldLength()` divides that total by the *live* document count. So every
+delete inflated the corpus's average document length — BM25's baseline for penalising long documents —
+and the effect survived until a rebuild. Measured in the new test: delete one of three documents and
+`avgFieldLength("title")` reads 3.0 where it should be 2.0, a 50% error in the term that normalises
+every score in the index.
+
+Same shape as the IDF bug written up in the article: the output stays plausible, the ordering is
+quietly wrong, and nothing fails. The delete path and the restore path (`setFieldLength`) share one
+counter, so the fix is subtracting what was added, and `deletionLeavesNoStatisticalTrace` now asserts
+that an index with a tombstone scores identically to one that never held the document.
+
+Verified: 70 tests, `data/eval/report.md` byte-identical before and after (nothing was deleted during
+evaluation, so no published number moves), jar still 225 KiB.
+
+### Changed — the one file allowed to be long now says so, with a number CI checks
+`CONTRIBUTING.md` states Engine's line count and the biggest package's, and `check-claims.sh`
+compares both against the tree. The guideline it crosses is deliberate and written as such: Engine is
+the assembly point, and splitting its snapshot code out means widening a private surface for two call
+sites. The line is now checkable, so the next pass that grows it can decide that on facts.
+
 ## 0.1.4 — 2026-09-22
 
 ### Added — the snapshot remembers how it was cut
