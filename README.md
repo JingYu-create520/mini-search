@@ -85,18 +85,18 @@ Single machine, zero dependencies, laptop, ten-millisecond queries at 50k docume
 | `index/` | 479 | inverted index, varbyte postings, positions, delete bitmap, phrase merge |
 | `ranking/` | 82 | BM25 with tunable k1/b and per-field boosts |
 | `hybrid/` | 76 | RRF and weighted score fusion |
-| `vector/` | 1054 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
+| `vector/` | 1086 | corpus-trained SGNS word vectors, brute-force k-NN, HNSW, `Encoder` SPI |
 | `semantic/` | 145 | distributed thesaurus (co-occurrence cosine) — the semantic model that works on small corpora |
 | `search/` | 413 | query orchestration, four modes, highlighting |
 | `crawl/` | 726 | polite crawler, robots, 64-bit dedupe, charset detection, link-density main-text extraction |
-| `api/` | 311 | routes and static assets on the JDK HTTP server |
-| `core/` | 844 | engine assembly, CRC-checked snapshot, corpus loading |
-| `eval/` | 349 | recall / precision / nDCG / MRR, scale benchmark |
+| `api/` | 337 | routes and static assets on the JDK HTTP server |
+| `core/` | 849 | engine assembly, CRC-checked snapshot, corpus loading |
+| `eval/` | 355 | recall / precision / nDCG / MRR, scale benchmark |
 | `mcp/` | 194 | MCP server over stdio JSON-RPC |
-| `util/` + CLI | 649 | JSON, varbyte, logging, commands |
-| **main** | **6,005** | 38 files |
-| tests | 1057 | 53 cases |
-| UI | 213 | single-file search page + index admin page |
+| `util/` + CLI | 679 | JSON, varbyte, logging, commands |
+| **main** | **6,104** | 38 files |
+| tests | 1175 | 57 cases |
+| UI | 252 | single-file search page + index admin page |
 
 ## Architecture
 
@@ -222,9 +222,10 @@ Tests run against a local HTTP server and never touch the internet: 404, 500, a 
 
 ```bash
 ./build.sh                          # javac path, no Maven needed
-mvn -B test                         # 53 cases
+mvn -B test                         # 57 cases
 mvn -B -DskipTests package          # target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
+scripts/check-claims.sh             # verify the README's self-referential numbers
 scripts/regold.sh                   # after an intentional analyser change
 ```
 

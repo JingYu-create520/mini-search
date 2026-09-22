@@ -51,7 +51,7 @@ https://github.com/JingYu-create520/mini-search
 ```
 Everything in here is hand-written on purpose: the Chinese analyser, the inverted index, BM25, SGNS
 word vectors, HNSW, RRF fusion, the polite crawler, the main-text extractor, the HTTP server and the
-JSON parser. No Lucene, no HanLP, no Spring, no vector DB, no model download. Total: 6,005 lines of
+JSON parser. No Lucene, no HanLP, no Spring, no vector DB, no model download. Total: 6,104 lines of
 main code in 38 files, and the jar is 214KB.
 
 The reason for not importing anything is narrow: I wanted every layer to be small enough to read, and
@@ -136,7 +136,7 @@ an MCP server so agents can use it as a local Google.
 **标题**
 
 ```
-我从零写了一个能搜中文的搜索引擎：6005 行、零依赖、214KB 一个 jar
+我从零写了一个能搜中文的搜索引擎：6104 行、零依赖、214KB 一个 jar
 ```
 
 **正文**：直接用仓库里的 `docs/ARTICLE.zh-CN.md`（已按掘金 Markdown 写好，含表格与代码块）。
@@ -150,14 +150,14 @@ an MCP server so agents can use it as a local Google.
 **标题**
 
 ```
-[开源] 本地优先的中文混合搜索引擎：自研分词+倒排+BM25+HNSW+RRF，6005 行零依赖，一个 214KB jar
+[开源] 本地优先的中文混合搜索引擎：自研分词+倒排+BM25+HNSW+RRF，6104 行零依赖，一个 214KB jar
 ```
 
 **正文**
 
 ```
 写了一个能搜中文的本地搜索引擎，全部手写：没有 Lucene、没有 HanLP、没有 Spring、没有向量数据库，
-也没有任何需要下载的模型（想要最强语义可以一条命令加装 24MB 的本地 bge 模型，仍然离线）。主代码 6005 行 / 38 个文件，jar 214KB，运行时零依赖。
+也没有任何需要下载的模型（想要最强语义可以一条命令加装 24MB 的本地 bge 模型，仍然离线）。主代码 6104 行 / 38 个文件，jar 214KB，运行时零依赖。
 
 java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar 里，断网可用。
 
@@ -193,7 +193,7 @@ java -jar mini-search.jar  →  http://localhost:9200，演示语料打在 jar �
 
 ## 发布前自检（我已经做完的部分标了 ✅）
 
-- ✅ 49 个测试全绿；`mvn -B package` 出 214KB jar；无关目录下 `java -jar` 冷启动可搜
+- ✅ 57 个测试全绿；`mvn -B package` 出 214KB jar；无关目录下 `java -jar` 冷启动可搜
 - ✅ README 双语、GIF 是真界面（`?tour=1` 自走）、评测与基准数字已提交进仓库
 - ✅ LICENSE(MIT)、CI 工作流（测试 + 评测门槛 + jar 冒烟）、Dockerfile/compose
 - ✅ Docker 已在本机验证：`docker build` 出 425MB 镜像，`docker compose up -d` 后 `:9200` 的统计与搜索接口均正常，中文不乱码

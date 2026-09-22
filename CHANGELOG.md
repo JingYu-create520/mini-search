@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/); the version follows
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+### Added — the README can no longer lie about its own repo
+`scripts/check-claims.sh` re-counts the tree and compares it against every self-referential number in
+the two READMEs, the launch copy and the article: per-module line counts, main-code total, file count,
+test lines, test cases, UI lines, longest single file. CI runs it as a build step.
+
+### Fixed
+- Those numbers had drifted: the READMEs advertised 6,005 main lines / 53 cases / a 213-line UI while
+  the tree held 6,104 / 57 / 252, and the article still carried the pre-M8 `vector/` size.
+- The article claimed "每层都不到 800 行", which `vector/` at 1,086 lines contradicts. It now claims the
+  smaller true thing — longest single file 453 lines — and that claim is checked too.
+
 ## 0.1.1 — 2026-09-21
 
 Found by running every documented command on a real machine rather than reading the code.

@@ -42,6 +42,8 @@ jobs:
             exit 1
           fi
           echo "jar is ${actual}KB, as advertised"
+      - name: Every line count and test count in the READMEs is true
+        run: bash scripts/check-claims.sh
       - uses: actions/upload-artifact@v4
         with:
           name: mini-search-jar

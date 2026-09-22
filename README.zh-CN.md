@@ -88,18 +88,18 @@ java -cp "target/mini-search.jar;libs/onnxruntime.jar" \
 | `index/` | 479 | 倒排索引、变长编码 posting、位置信息、删除位图、短语合并 |
 | `ranking/` | 82 | BM25（k1/b 可调，多字段加权） |
 | `hybrid/` | 76 | RRF 与加权分数融合 |
-| `vector/` | 1054 | 语料自训词向量(SGNS)、暴力 KNN、HNSW、WordPiece 分词器、可选 ONNX/bge 编码器 |
+| `vector/` | 1086 | 语料自训词向量(SGNS)、暴力 KNN、HNSW、WordPiece 分词器、可选 ONNX/bge 编码器 |
 | `semantic/` | 145 | 分布式同源词典（共现余弦），小语料下的语义层 |
 | `search/` | 413 | 查询编排、四种模式、高亮与摘要 |
 | `crawl/` | 726 | 礼貌爬虫、robots、64 位指纹去重、编码探测、链接密度正文抽取 |
-| `api/` | 311 | JDK HttpServer 路由与静态资源 |
-| `core/` | 844 | 引擎装配、快照持久化、语料装载 |
-| `eval/` | 349 | recall/precision/nDCG/MRR 与规模基准 |
+| `api/` | 337 | JDK HttpServer 路由与静态资源 |
+| `core/` | 849 | 引擎装配、快照持久化、语料装载 |
+| `eval/` | 355 | recall/precision/nDCG/MRR 与规模基准 |
 | `mcp/` | 194 | stdio JSON-RPC 的 MCP server |
-| `util/` + 入口 | 649 | JSON、变长编码、日志、CLI |
-| **主代码合计** | **6005** | 38 个文件 |
-| 测试 | 1057 | 53 个用例（4 个需要本地模型，缺模型时自动跳过） |
-| 前端 | 213 | 单文件搜索页 + 索引管理页 |
+| `util/` + 入口 | 679 | JSON、变长编码、日志、CLI |
+| **主代码合计** | **6104** | 38 个文件 |
+| 测试 | 1175 | 57 个用例（4 个需要本地模型，缺模型时自动跳过） |
+| 前端 | 252 | 单文件搜索页 + 索引管理页 |
 
 ## 架构
 
@@ -247,11 +247,12 @@ robots 规则按最长前缀优先，`Allow` 能盖过 `Disallow`；每个域名
 
 ```bash
 ./build.sh                                   # 不用 Maven 的本地编译
-mvn -B test                                  # 53 个用例
+mvn -B test                                  # 57 个用例
 mvn -B -DskipTests package                   # 产出 target/mini-search.jar
 java -cp target/classes dev.jingyu.ms.MiniSearch eval
 java -cp target/classes dev.jingyu.ms.MiniSearch bench --docs 50000
 scripts/regold.sh                            # 有意改分词后重建 golden master
+scripts/check-claims.sh                      # 校验 README 里那些自指数字没有说谎
 ```
 
 Java 17，Maven 只在构建期需要（测试用 JUnit 5）；运行期一个 jar 就够。
